@@ -250,7 +250,7 @@ const Accordion = ({ question, answer }) => {
 
 // --- LAYOUT WRAPPER ---
 const Section = ({ children, className = '', innerClassName = '', noVerticalPadding = false }) => (
-  <section className={`${noVerticalPadding ? '' : 'py-32 md:py-40'} px-6 md:px-12 lg:px-16 ${className}`}>
+  <section className={`${noVerticalPadding ? '' : 'py-32 md:py-40'} px-[3%] ${className}`}>
     <div className={`max-w-[1600px] mx-auto w-full ${innerClassName}`}>
       {children}
     </div>
@@ -444,12 +444,12 @@ const HomePage = ({ navigate }) => {
         </div>
 
         {/* Giant Split Text Component using Uniform Left Padding */}
-        <div className="flex-1 flex flex-col justify-center w-full max-w-[1600px] mx-auto px-6 md:px-12 lg:px-16 z-10">
+        <div className="flex-1 flex flex-col justify-center w-full max-w-[1600px] mx-auto px-[3%] z-10">
           <SplitHeroText line1="PROVEN" line2="EXCELLENCE" />
         </div>
 
         {/* Subtext and Explore Button */}
-        <div className="w-full max-w-[1600px] mx-auto px-6 md:px-12 lg:px-16 z-20 flex flex-col md:flex-row justify-between items-start md:items-end pb-12">
+        <div className="w-full max-w-[1600px] mx-auto px-[3%] z-20 flex flex-col md:flex-row justify-between items-start md:items-end pb-12">
           <RevealText delay={300} text="01 — Shaping the future of Auckland's residential landscape." className="text-lg md:text-xl font-light text-zinc-600 max-w-sm mb-8 md:mb-0" />
           <Interactive onClick={() => navigate('projects')} className="group flex items-center gap-4 cursor-pointer text-zinc-950 md:text-white md:mix-blend-difference">
             <div className="w-12 h-12 rounded-full border border-current flex items-center justify-center group-hover:bg-white group-hover:text-zinc-950 transition-colors duration-500">
@@ -638,7 +638,7 @@ const HomePage = ({ navigate }) => {
       </Section>
 
       {/* Cinematic Video Teaser */}
-      <section className="py-12 md:py-24 px-6 md:px-12 lg:px-16 bg-[#fafafa]">
+      <section className="py-12 md:py-24 px-[3%] bg-[#fafafa]">
         <div className="max-w-[1600px] mx-auto relative h-[60vh] md:h-[80vh] overflow-hidden group rounded-[2rem] md:rounded-[3rem] bg-zinc-950 w-full shadow-lg">
           <UnveilVideo 
             src="https://cdn.coverr.co/videos/coverr-walking-through-a-modern-house-2525/1080p.mp4" 
@@ -1309,7 +1309,7 @@ export default function App() {
         <CustomCursor />
 
         {/* Minimal Header with Uniform Padding Container */}
-        <header className={`fixed w-full z-50 transition-all duration-700 ease-out px-6 md:px-12 lg:px-16 ${scrolled ? 'py-2 md:py-4 bg-white/95 backdrop-blur-sm shadow-sm' : 'py-4 md:py-6'}`}>
+        <header className={`fixed w-full z-50 transition-all duration-700 ease-out px-[3%] ${scrolled ? 'py-2 md:py-4 bg-white/95 backdrop-blur-sm shadow-sm' : 'py-4 md:py-6'}`}>
           <div className="w-full max-w-[1600px] mx-auto flex justify-between items-center">
             
             {/* Logo */}
@@ -1391,7 +1391,7 @@ export default function App() {
         </main>
 
         {/* Architectural Footer */}
-        <footer className="bg-zinc-950 text-zinc-400 py-24 px-6 md:px-12 lg:px-16 relative z-20">
+        <footer className="bg-zinc-950 text-zinc-400 py-24 px-[3%] relative z-20">
           <div className="max-w-[1600px] mx-auto w-full">
             <div className="flex flex-col md:flex-row justify-between items-start border-b border-zinc-800 pb-20">
               <div className="mb-12 md:mb-0">
