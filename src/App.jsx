@@ -1,1430 +1,1508 @@
-import React, { useState, useEffect, useRef, createContext, useContext } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Menu, X, ArrowRight, MapPin, Phone, Mail, ArrowUpRight, Instagram, Linkedin, Plus, Minus, Play
+  ArrowRight,
+  Menu,
+  X,
+  Instagram,
+  Linkedin,
+  Facebook,
+  Play,
+  ArrowUpRight,
+  Youtube
 } from 'lucide-react';
 
-// --- CONTEXT FOR CUSTOM CURSOR ---
-const CursorContext = createContext();
-
-// --- CUSTOM CSS (Injected) ---
-const ultraModernStyles = `
-  @import url('https://fonts.googleapis.com/css2?family=Urbanist:wght@100;200;300;400;500;600;700;800;900&display=swap');
-
-  :root {
-    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
-    --ease-in-out-quint: cubic-bezier(0.83, 0, 0.17, 1);
-  }
-  
-  html, body {
-    cursor: none; /* Hide default cursor for desktop */
-    scroll-behavior: smooth;
-    font-family: 'Urbanist', sans-serif;
-  }
-
-  /* Clip Path Unveil Animation */
-  .clip-hidden {
-    clip-path: polygon(0 100%, 100% 100%, 100% 100%, 0 100%);
-  }
-  .clip-visible {
-    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
-  }
-  .clip-transition {
-    transition: clip-path 1.5s var(--ease-in-out-quint);
-  }
-
-  /* Hide scrollbar for clean look */
-  ::-webkit-scrollbar { width: 8px; }
-  ::-webkit-scrollbar-track { background: #fafafa; }
-  ::-webkit-scrollbar-thumb { background: #e4e4e7; }
-  ::-webkit-scrollbar-thumb:hover { background: #d4d4d8; }
-
-  @media (max-width: 768px) {
-    html, body { cursor: auto; }
-    #custom-cursor { display: none !important; }
-  }
-
-  /* Hollow Text Effect */
-  .text-hollow {
-    color: transparent;
-    -webkit-text-stroke: 1px #09090b; /* zinc-950 */
-  }
-  .text-hollow-white {
-    color: transparent;
-    -webkit-text-stroke: 1px #ffffff;
-  }
-  @media (min-width: 768px) {
-    .text-hollow { -webkit-text-stroke: 2px #09090b; }
-    .text-hollow-white { -webkit-text-stroke: 2px #ffffff; }
-  }
-
-  /* Seamless Marquee Animation */
-  @keyframes marquee {
-    0% { transform: translateX(0%); }
-    100% { transform: translateX(-50%); }
-  }
-  .animate-marquee {
-    display: flex;
-    width: max-content;
-    animation: marquee 30s linear infinite;
-  }
-`;
-
-// --- INTERACTIVE COMPONENTS ---
-
-const CustomCursor = () => {
-  const { isHovering } = useContext(CursorContext);
-  const [position, setPosition] = useState({ x: -100, y: -100 });
-  const [isClicking, setIsClicking] = useState(false);
-
-  useEffect(() => {
-    const updatePosition = (e) => setPosition({ x: e.clientX, y: e.clientY });
-    const handleMouseDown = () => setIsClicking(true);
-    const handleMouseUp = () => setIsClicking(false);
-
-    window.addEventListener('mousemove', updatePosition);
-    window.addEventListener('mousedown', handleMouseDown);
-    window.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      window.removeEventListener('mousemove', updatePosition);
-      window.removeEventListener('mousedown', handleMouseDown);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, []);
-
-  return (
-    <div 
-      id="custom-cursor"
-      className="fixed top-0 left-0 w-8 h-8 pointer-events-none z-[100] mix-blend-difference flex items-center justify-center transition-transform duration-300 ease-out"
-      style={{ transform: `translate(${position.x - 16}px, ${position.y - 16}px)` }}
-    >
-      <div 
-        className={`bg-white rounded-full transition-all duration-300 ${
-          isHovering ? 'w-16 h-16 opacity-100' : (isClicking ? 'w-2 h-2 opacity-50' : 'w-4 h-4 opacity-100')
-        }`}
-      />
-    </div>
-  );
-};
-
-const Interactive = ({ children, className = '', onClick }) => {
-  const { setIsHovering } = useContext(CursorContext);
-  return (
-    <div 
-      className={className}
-      onMouseEnter={() => setIsHovering(true)}
-      onMouseLeave={() => setIsHovering(false)}
-      onClick={onClick}
-    >
-      {children}
-    </div>
-  );
-};
-
-const useOnScreen = (options) => {
-  const ref = useRef();
+/**
+ * CUSTOM HOOK: WHISPER SCROLL REVEAL
+ */
+const useScrollReveal = (threshold = 0.1) => {
+  const ref = useRef(null);
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) {
-        setIsVisible(true);
-        if (ref.current) observer.unobserve(ref.current);
-      }
-    }, { threshold: 0.1, ...options });
-
-    const currentRef = ref.current;
-    if (currentRef) observer.observe(currentRef);
-    return () => { if (currentRef) observer.unobserve(currentRef); };
-  }, [options]);
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.unobserve(entry.target);
+        }
+      },
+      { threshold, rootMargin: '0px 0px -50px 0px' }
+    );
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, [threshold]);
 
   return [ref, isVisible];
 };
 
-const UnveilImage = ({ src, alt, className = '' }) => {
-  const [ref, isVisible] = useOnScreen({ threshold: 0.2 });
-  return (
-    <div ref={ref} className={`overflow-hidden relative ${className}`}>
-      <img 
-        src={src} 
-        alt={alt} 
-        className={`w-full h-full object-cover clip-transition ${isVisible ? 'clip-visible scale-100' : 'clip-hidden scale-110'} transition-transform duration-[2s] ease-out`}
-      />
-    </div>
-  );
-};
-
-const UnveilVideo = ({ src, className = '' }) => {
-  const [ref, isVisible] = useOnScreen({ threshold: 0.2 });
-  return (
-    <div ref={ref} className={`overflow-hidden relative ${className}`}>
-      <video 
-        autoPlay 
-        loop 
-        muted 
-        playsInline 
-        src={src}
-        className={`w-full h-full object-cover clip-transition ${isVisible ? 'clip-visible scale-100' : 'clip-hidden scale-110'} transition-transform duration-[2s] ease-out`}
-      />
-    </div>
-  );
-};
-
-const HeroImageReveal = ({ src, alt, className = '' }) => {
-  const [isLoaded, setIsLoaded] = useState(false);
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoaded(true), 100);
-    return () => clearTimeout(timer);
-  }, []);
-  return (
-    <div className={`overflow-hidden relative ${className}`}>
-      <img 
-        src={src} 
-        alt={alt} 
-        className={`w-full h-full object-cover clip-transition ${isLoaded ? 'clip-visible scale-100' : 'clip-hidden scale-110'} transition-transform duration-[2s] ease-out`}
-      />
-    </div>
-  );
-};
-
-const RevealText = ({ text, className = '', delay = 0 }) => {
-  const [ref, isVisible] = useOnScreen();
-  return (
-    <div ref={ref} className={`overflow-hidden ${className}`}>
-      <div 
-        className={`transition-transform duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-[100%] opacity-0'}`}
-        style={{ transitionDelay: `${delay}ms` }}
-      >
-        {text}
-      </div>
-    </div>
-  );
-};
-
-const Accordion = ({ question, answer, isOpen, onClick }) => {
-  return (
-    <div className="border-b border-zinc-200">
-      <Interactive>
-        <button 
-          onClick={onClick} 
-          className="w-full py-8 flex justify-between items-center text-left focus:outline-none"
-        >
-          <span className="text-xl md:text-3xl font-light text-zinc-950">{question}</span>
-          <span className="ml-4 flex-shrink-0 text-zinc-400">
-            {isOpen ? <Minus className="w-6 h-6" /> : <Plus className="w-6 h-6" />}
-          </span>
-        </button>
-      </Interactive>
-      <div 
-        className={`overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${isOpen ? 'max-h-96 pb-8 opacity-100' : 'max-h-0 opacity-0'}`}
-      >
-        <p className="text-lg md:text-xl font-light text-zinc-500 max-w-3xl leading-relaxed">{answer}</p>
-      </div>
-    </div>
-  );
-};
-
-// --- LAYOUT WRAPPER ---
-const Section = ({ children, className = '', innerClassName = '', noVerticalPadding = false }) => (
-  <section className={`${noVerticalPadding ? '' : 'py-32 md:py-40'} px-[3%] ${className}`}>
-    <div className={`max-w-[1600px] mx-auto w-full ${innerClassName}`}>
-      {children}
-    </div>
-  </section>
-);
-
-
-// --- DUMMY CMS DATA ---
-const projectsData = [
-  { id: 1, title: 'Hobsonville Col.', location: 'Auckland', status: 'Completed', image: 'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?ixlib=rb-4.0.3&auto=format&fit=crop&w=1600&q=80' },
-  { id: 2, title: 'Epsom Arch.', location: 'Auckland', status: 'Completed', image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1600&q=80' },
-  { id: 3, title: 'Peninsula Terraces', location: 'Te Atatu', status: 'Selling Now', image: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?ixlib=rb-4.0.3&auto=format&fit=crop&w=1600&q=80' }
-];
-
-const servicesData = [
-  { 
-    title: 'Development', 
-    desc: 'From identifying great locations to thoughtfully planned residential communities. Full lifecycle management.', 
-    image: 'https://images.unsplash.com/photo-1503387762-592deb58ef4e?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
-    features: ['Site Acquisition', 'Feasibility Studies', 'Resource Consents', 'Community Planning']
-  },
-  { 
-    title: 'Construction', 
-    desc: 'Reliable, high-quality construction with absolute attention to detail, timelines, and cost control.', 
-    image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
-    features: ['Fixed-Price Contracts', 'Rigorous Quality Assurance', 'Timely Execution', 'Health & Safety Compliance']
-  },
-  { 
-    title: 'Custom Homes', 
-    desc: 'Standalone homes tailored to modern lifestyles, combining smart architectural design with long-term value.', 
-    image: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
-    features: ['Bespoke Architectural Design', 'Premium Material Sourcing', 'Interior Design Consulting', 'Turnkey Solutions']
-  },
-  { 
-    title: 'Project Management', 
-    desc: 'From planning to subdivision, compliance, and completion, we handle every stage of the journey.', 
-    image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
-    features: ['Timeline Management', 'Budget Control', 'Contractor Coordination', 'Final Certification']
-  }
-];
-
-const valuesData = [
-  { num: '01', title: 'Architectural Integrity', desc: 'We never compromise on design. Every home is built with a focus on spatial flow, natural light, and premium materials.' },
-  { num: '02', title: 'Transparent Process', desc: 'From day one, our clients have full visibility into costs, timelines, and construction progress. No surprises.' },
-  { num: '03', title: 'Enduring Quality', desc: 'We build homes that last generations. Our rigorous quality assurance guarantees excellence at every phase.' }
-];
-
-const processData = [
-  { step: '01', title: 'Discovery', desc: 'We begin with a deep dive into your vision, site potential, and feasibility. We establish clear parameters for success.' },
-  { step: '02', title: 'Architecture', desc: 'Our design team translates your brief into conceptual frameworks, managing all local council compliance and resource consents.' },
-  { step: '03', title: 'Construction', desc: 'Execution with precision. Our experienced project managers and builders bring the architectural plans to life.' },
-  { step: '04', title: 'Handover', desc: 'Rigorous quality assurance, final certifications, and the moment we hand over the keys to your completed property.' }
-];
-
-const faqData = [
-  { q: "Do you handle both design and construction?", a: "Yes. Pillar Properties operates as an end-to-end partner. We manage the entire lifecycle from initial architectural concepts and council consents through to the final build and interior finishing." },
-  { q: "What areas of Auckland do you service?", a: "We primarily operate across the greater Auckland region, with a strong focus on the central suburbs, North Shore, and emerging developments in the West and South." },
-  { q: "Do you work with investors for multi-unit developments?", a: "Absolutely. A large portion of our portfolio consists of high-yield townhouse and terraced home developments tailored for property investors and syndicates." },
-  { q: "How do you ensure projects stay on budget?", a: "We provide fixed-price contracts and highly detailed initial scoping. Our transparent procurement process and tight project management eliminate unexpected variations." }
-];
-
-const teamData = [
-  { name: 'James Carter', role: 'Managing Director', image: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80' },
-  { name: 'Elena Rostova', role: 'Head of Architecture', image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80' },
-  { name: 'Marcus Chen', role: 'Lead Developer', image: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80' }
-];
-
-const milestonesData = [
-  { year: '2019', title: 'The Foundation', desc: 'Pillar Properties was established with a vision to redefine Auckland residential architecture.' },
-  { year: '2021', title: 'First Major Project', desc: 'Completed the landmark Epsom Architectural series, setting a new benchmark for luxury.' },
-  { year: '2023', title: 'Expansion & Growth', desc: 'Scaled operations to manage over 15 active sites simultaneously across the greater Auckland region.' },
-  { year: '2026', title: 'Sustainable Future', desc: 'Committed to 100% passive heating integration and carbon-neutral construction practices.' }
-];
-
-const awardsData = [
-  { year: '2024', title: 'NZIA Local Architecture Award', category: 'Housing - Multi Unit' },
-  { year: '2025', title: 'Master Builders House of the Year', category: 'Gold Award' },
-  { year: '2026', title: 'Sustainable Design Excellence', category: 'Innovation in Building' }
-];
-
-const insightsData = [
-  { category: 'Architecture', date: 'March 2026', title: 'The Rise of Minimalist Concrete in Auckland Homes' },
-  { category: 'Market Update', date: 'February 2026', title: 'Navigating Resource Consents for Multi-Unit Builds' },
-  { category: 'Sustainability', date: 'January 2026', title: 'Integrating Passive Heating into Luxury Designs' }
-];
-
-const futureProjectsData = [
-  { title: 'The Parnell Ascend', location: 'Parnell, Auckland', expected: 'Q3 2026' },
-  { title: 'Orakei Basin Villas', location: 'Orakei, Auckland', expected: 'Q4 2026' },
-  { title: 'Grey Lynn Urban', location: 'Grey Lynn, Auckland', expected: 'Q1 2027' }
-];
-
-const signatureDetails = [
-  { title: "Bespoke Joinery", desc: "Custom cabinetry and shelving designed to blend seamlessly into the architectural form, eliminating visual clutter.", image: "https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80" },
-  { title: "Polished Concrete", desc: "Thermal mass heating meets industrial elegance with our signature poured and ground floors.", image: "https://images.unsplash.com/photo-1600607686527-6fb886090705?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80" },
-  { title: "Spatial Harmony", desc: "Double-height voids and floor-to-ceiling glazing engineered to capture and maximize natural Auckland light.", image: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80" }
-];
-
-const galleryData = [
-  "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80",
-  "https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80",
-  "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80",
-  "https://images.unsplash.com/photo-1613490908677-62a26500ac13?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80",
-  "https://images.unsplash.com/photo-1503387762-592deb58ef4e?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80",
-  "https://images.unsplash.com/photo-1541888086925-0c13bb4229f7?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80",
-  "https://images.unsplash.com/photo-1518780664697-55e3ad937233?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80",
-  "https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80",
-  "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80",
-  "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80",
-  "https://images.unsplash.com/photo-1556910103-1c02745aae4d?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80",
-  "https://images.unsplash.com/photo-1600585154363-67eb9e2e2099?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80",
-  "https://images.unsplash.com/photo-1512915922686-57c11dde9b6b?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80",
-  "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80",
-  "https://images.unsplash.com/photo-1576013551627-c0208f3216fa?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80",
-  "https://images.unsplash.com/photo-1616594039964-ae9021a400a0?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80",
-  "https://images.unsplash.com/photo-1600607686527-6fb886090705?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"
-];
-
-// Marquee Text Loop
-const marqueeItems = [
-  "Residential Developers", "Architectural Builders", "Project Managers", "Investment Partners",
-  "Residential Developers", "Architectural Builders", "Project Managers", "Investment Partners"
-];
-
-// --- AI HELPER FUNCTION ---
-const generateAIBrief = async (userPrompt) => {
-  const apiKey = "";
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-  
-  const systemInstruction = `You are an expert architectural consultant for Pillar Properties, a premium residential developer in Auckland, New Zealand. 
-The user will describe their dream home or investment project. 
-Respond with a highly professional, minimalist, and structured architectural brief containing exactly these three sections:
-CONCEPT SUMMARY: A 2-sentence sophisticated summary of the vision.
-DESIGN DIRECTION: Recommended materials, architectural style, and spatial flow.
-PROJECTED TIMELINE: A realistic high-level timeline for Auckland (e.g., Feasibility, Consent, Build).
-Keep the tone ultra-premium, confident, and concise. Use simple plain text with capital letters for section headers. Do not use asterisks or markdown styling.`;
-
-  const payload = {
-    contents: [{ parts: [{ text: userPrompt }] }],
-    systemInstruction: { parts: [{ text: systemInstruction }] }
-  };
-
-  const delays = [1000, 2000, 4000, 8000, 16000];
-  let lastError = null;
-
-  for (let i = 0; i <= delays.length; i++) {
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
-      return data.candidates?.[0]?.content?.parts?.[0]?.text || "No brief generated. Please try again.";
-    } catch (error) {
-      lastError = error;
-      if (i < delays.length) {
-        await new Promise(resolve => setTimeout(resolve, delays[i]));
-      }
-    }
-  }
-  return "We are currently experiencing high demand. Please contact us directly to discuss your vision.";
-};
-
-// --- PAGES ---
-
-const HomePage = ({ navigate }) => {
-  const [hoveredProject, setHoveredProject] = useState(projectsData[0].image);
-  const [activeDetail, setActiveDetail] = useState(0);
-  const [openFaqIndex, setOpenFaqIndex] = useState(null);
-
-  return (
-    <div className="animate-in fade-in duration-1000 bg-[#fafafa]">
-      
-      {/* Hero Section */}
-      <section className="relative h-screen min-h-[700px] flex flex-col w-full overflow-hidden justify-end pb-12 md:pb-16 px-[3%]">
-        {/* Cinematic Video Background */}
-        <div className="absolute inset-0 z-0 bg-zinc-950">
-          <video
-            autoPlay
-            loop
-            muted
-            playsInline
-            className="w-full h-full object-cover opacity-60 scale-105"
-            src="https://video.wixstatic.com/video/548938_44a59f7f875641ef8e61ad3cc16fcdd0/1080p/mp4/file.mp4"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/40 to-zinc-950/40"></div>
-        </div>
-
-        {/* New Hero Content */}
-        <div className="w-full max-w-[1600px] mx-auto z-10 flex flex-col">
-          <RevealText text="AUCKLAND'S PREMIER RESIDENTIAL DEVELOPER" className="text-xs md:text-sm tracking-[0.3em] uppercase text-zinc-300 font-semibold mb-6" />
-          <div className="text-5xl md:text-7xl lg:text-[7vw] font-light tracking-tight text-white mb-8 md:mb-16 max-w-5xl leading-[1.1]">
-            <RevealText text="Crafting Auckland's" />
-            <RevealText text="finest homes." delay={100} />
-          </div>
-          <div className="flex flex-col md:flex-row md:items-end justify-between w-full gap-8 border-t border-white/20 pt-8">
-             <RevealText text="Over 600 premium homes delivered with uncompromising architectural integrity. Built on trust, driven by design." className="text-lg md:text-xl font-light text-zinc-300 max-w-xl" delay={200} />
-             <Interactive onClick={() => navigate('projects')} className="group flex items-center gap-4 cursor-pointer text-white">
-                <div className="w-14 h-14 rounded-full border border-white/30 backdrop-blur-sm flex items-center justify-center group-hover:bg-white group-hover:text-zinc-950 transition-colors duration-500">
-                  <ArrowRight className="w-6 h-6 transition-colors duration-500" />
-                </div>
-                <span className="uppercase tracking-[0.2em] text-sm font-semibold">Explore Portfolio</span>
-              </Interactive>
-          </div>
-        </div>
-      </section>
-
-      {/* Statement Section */}
-      <Section className="bg-white">
-        <div className="max-w-5xl">
-          <div className="text-3xl md:text-5xl lg:text-7xl font-light leading-tight tracking-tight text-zinc-950">
-            <RevealText text="We don't just build houses." />
-            <RevealText text="We design, develop, and manage" delay={100} className="text-zinc-400" />
-            <RevealText text="high-quality homes tailored" delay={200} />
-            <RevealText text="to modern lifestyles." delay={300} />
-          </div>
-        </div>
-        
-        {/* Trust/Conversion Strip */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mt-24 md:mt-32 border-t border-zinc-200 pt-12">
-          {[
-            { num: '600+', label: 'Homes Delivered' },
-            { num: '07', label: 'Years Experience' },
-            { num: '100%', label: 'Auckland Owned' },
-            { num: '15+', label: 'Active Sites' }
-          ].map((stat, i) => (
-            <div key={i} className="flex flex-col">
-              <RevealText text={stat.num} delay={i * 100} className="text-4xl md:text-5xl font-light text-zinc-950 mb-2" />
-              <RevealText text={stat.label} delay={i * 100 + 50} className="text-[10px] md:text-xs tracking-[0.2em] uppercase text-zinc-400 font-semibold" />
-            </div>
-          ))}
-        </div>
-      </Section>
-
-      {/* Infinite Marquee Section - Perfectly Seamless Loop */}
-      <section className="py-8 bg-zinc-950 text-white overflow-hidden flex border-y border-zinc-800 w-full relative">
-        <div className="animate-marquee text-[10px] md:text-sm tracking-[0.3em] uppercase font-semibold text-zinc-400 items-center">
-          {/* First Block */}
-          <div className="flex shrink-0 items-center">
-            {marqueeItems.map((item, idx) => (
-              <React.Fragment key={idx}>
-                <span className="mx-8 whitespace-nowrap">{item}</span>
-                <span className="mx-8 opacity-30 shrink-0">•</span>
-              </React.Fragment>
-            ))}
-          </div>
-          {/* Exact Duplicate Block for Seamless Looping */}
-          <div className="flex shrink-0 items-center">
-            {marqueeItems.map((item, idx) => (
-              <React.Fragment key={`dup-${idx}`}>
-                <span className="mx-8 whitespace-nowrap">{item}</span>
-                <span className="mx-8 opacity-30 shrink-0">•</span>
-              </React.Fragment>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Process Section (Conversion Factor: Transparency) */}
-      <Section className="bg-[#fafafa]">
-        <RevealText text="METHODOLOGY" className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold mb-20" />
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-12 lg:gap-8">
-          {processData.map((process, idx) => (
-            <div key={idx} className="border-t border-zinc-200 pt-8 group">
-              <RevealText text={process.step} delay={idx * 100} className="text-5xl font-thin text-zinc-300 mb-8 group-hover:text-zinc-950 transition-colors duration-500" />
-              <RevealText text={process.title} delay={idx * 100 + 50} className="text-2xl font-light text-zinc-950 mb-4" />
-              <RevealText text={process.desc} delay={idx * 100 + 100} className="text-zinc-500 font-light leading-relaxed text-sm md:text-base" />
-            </div>
-          ))}
-        </div>
-      </Section>
-
-      {/* Signature Details (Interactive Hover Gallery) */}
-      <Section className="bg-white border-t border-zinc-200" innerClassName="flex flex-col lg:flex-row gap-16 lg:gap-24 items-center">
-        <div className="w-full lg:w-1/2 flex flex-col justify-center">
-          <RevealText text="SIGNATURE FINISHES" className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold mb-12" />
-          <div className="flex flex-col gap-8">
-            {signatureDetails.map((detail, idx) => (
-              <div 
-                key={idx} 
-                onMouseEnter={() => setActiveDetail(idx)}
-                className="cursor-pointer group border-b border-zinc-100 pb-8 last:border-0"
-              >
-                <h3 className={`text-4xl md:text-5xl lg:text-6xl font-light tracking-tight transition-colors duration-500 ${activeDetail === idx ? 'text-zinc-950' : 'text-zinc-300 group-hover:text-zinc-400'}`}>
-                  {detail.title}
-                </h3>
-                <div className={`overflow-hidden transition-all duration-500 ease-out ${activeDetail === idx ? 'max-h-40 mt-6 opacity-100' : 'max-h-0 opacity-0'}`}>
-                  <p className="text-zinc-500 font-light max-w-sm leading-relaxed">{detail.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="w-full lg:w-1/2 h-[500px] md:h-[700px] overflow-hidden relative bg-zinc-100 rounded-3xl shadow-sm">
-          {signatureDetails.map((detail, idx) => (
-            <img 
-              key={idx}
-              src={detail.image} 
-              alt={detail.title} 
-              className={`absolute inset-0 w-full h-full object-cover transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] ${activeDetail === idx ? 'opacity-100 scale-100 z-10' : 'opacity-0 scale-105 z-0'}`}
-            />
-          ))}
-        </div>
-      </Section>
-
-      {/* Interactive Project Roster */}
-      <Section className="bg-zinc-950 text-white relative" innerClassName="relative z-10">
-        <div className="mb-20 flex justify-between items-end">
-          <RevealText text="SELECTED WORKS" className="text-xs tracking-[0.3em] uppercase text-zinc-500 font-semibold" />
-          <Interactive onClick={() => navigate('projects')} className="hidden md:flex items-center gap-2 cursor-pointer text-zinc-400 hover:text-white transition-colors">
-            <span className="text-xs tracking-[0.2em] uppercase font-semibold">View Full Portfolio</span>
-          </Interactive>
-        </div>
-
-        <div className="border-t border-zinc-800">
-          {projectsData.map((project, idx) => (
-            <Interactive key={project.id} onClick={() => navigate('projects')}>
-              <div 
-                className="group flex flex-col md:flex-row justify-between items-start md:items-center py-10 md:py-16 border-b border-zinc-800 cursor-pointer relative"
-                onMouseEnter={() => setHoveredProject(project.image)}
-              >
-                {/* Hover Image Reveal for Mobile (Smoothly Animated) */}
-                <div className="md:hidden w-full overflow-hidden transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] max-h-0 opacity-0 group-hover:max-h-[500px] group-hover:opacity-100 group-hover:mb-6 rounded-2xl">
-                  <img src={project.image} alt={project.title} className="w-full h-64 object-cover" />
-                </div>
-
-                <RevealText text={`0${idx + 1}`} className="text-sm tracking-[0.2em] text-zinc-600 mb-4 md:mb-0 md:w-24" />
-                
-                <div className="flex-1 flex flex-col md:flex-row md:items-center justify-between w-full">
-                  <h3 className="text-3xl md:text-5xl lg:text-6xl font-light tracking-tight transform group-hover:translate-x-4 transition-all duration-500 ease-out text-zinc-300 group-hover:text-white inline-block">{project.title}</h3>
-                  <div className="flex items-center gap-8 mt-4 md:mt-0 text-zinc-500 group-hover:text-zinc-300 transition-colors duration-500">
-                    <span className="text-[10px] md:text-xs tracking-widest uppercase font-semibold">{project.location}</span>
-                    <ArrowUpRight className="w-6 h-6 opacity-0 -translate-y-4 translate-x-4 group-hover:opacity-100 group-hover:translate-y-0 group-hover:translate-x-0 transition-all duration-500 ease-out hidden md:block" />
-                  </div>
-                </div>
-              </div>
-            </Interactive>
-          ))}
-        </div>
-        
-        {/* Floating Desktop Image Follower (Bulletproof Crossfade) */}
-        <div className="hidden md:block absolute top-1/2 right-0 -translate-y-1/2 w-[35vw] max-w-[500px] h-[60vh] max-h-[700px] pointer-events-none overflow-hidden rounded-3xl z-0 shadow-2xl">
-          {projectsData.map((proj) => (
-            <img 
-              key={proj.id}
-              src={proj.image} 
-              alt={proj.title} 
-              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ease-out ${hoveredProject === proj.image ? 'opacity-80' : 'opacity-0'}`}
-            />
-          ))}
-        </div>
-      </Section>
-
-      {/* Services Minimal */}
-      <Section className="bg-white">
-        <RevealText text="EXPERTISE" className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold mb-20" />
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-16">
-          {servicesData.map((service, idx) => (
-            <Interactive key={idx} onClick={() => navigate('services')} className="group cursor-pointer flex flex-col h-full">
-              <div className="w-full aspect-[4/5] md:h-[450px] overflow-hidden mb-8 bg-zinc-100 rounded-3xl shadow-sm">
-                <img src={service.image} className="w-full h-full object-cover grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-105 transition-all duration-[1.5s] ease-out" alt={service.title} />
-              </div>
-              <RevealText text={service.title} className="text-2xl font-light mb-4 text-zinc-950 border-b border-zinc-200 pb-4 flex justify-between items-center group-hover:border-zinc-950 transition-colors duration-500">
-                  {service.title}
-                  <ArrowRight className="w-4 h-4 opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-500" />
-              </RevealText>
-              <RevealText text={service.desc} delay={100} className="text-zinc-500 font-light leading-relaxed text-sm md:text-base" />
-            </Interactive>
-          ))}
-        </div>
-      </Section>
-
-      {/* Testimonial Section (Social Proof) */}
-      <Section className="bg-zinc-50 border-t border-zinc-200" innerClassName="flex flex-col items-center text-center">
-        <div className="max-w-5xl">
-          <RevealText text="CLIENT PERSPECTIVE" className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold mb-16" />
-          <RevealText text="“Pillar Properties delivered our architectural build flawlessly. Their transparency regarding costs and absolute refusal to compromise on finish quality set them apart in the Auckland market.”" className="text-2xl md:text-4xl lg:text-5xl font-light text-zinc-950 leading-snug tracking-tight mb-12" delay={100} />
-          <div className="flex flex-col items-center">
-             <RevealText text="Sarah & James T." className="text-sm tracking-widest uppercase font-semibold text-zinc-950 mb-1" delay={200} />
-             <RevealText text="Epsom Custom Build" className="text-xs tracking-widest uppercase text-zinc-400" delay={300} />
-          </div>
-        </div>
-      </Section>
-
-      {/* Cinematic Video Teaser */}
-      <section className="py-12 md:py-24 px-[3%] bg-[#fafafa]">
-        <div className="max-w-[1600px] mx-auto relative h-[60vh] md:h-[80vh] overflow-hidden group rounded-[2rem] md:rounded-[3rem] bg-zinc-950 w-full shadow-lg">
-          <UnveilVideo 
-            src="https://cdn.coverr.co/videos/coverr-walking-through-a-modern-house-2525/1080p.mp4" 
-            className="absolute inset-0 w-full h-full opacity-70 group-hover:opacity-100 group-hover:scale-105 transition-all duration-[3s] ease-out pointer-events-none"
-          />
-          <div className="absolute inset-0 flex items-center justify-center z-10">
-            <Interactive>
-              <button className="w-24 h-24 md:w-32 md:h-32 rounded-full border border-white/30 backdrop-blur-md flex flex-col items-center justify-center group-hover:bg-white text-white group-hover:text-zinc-950 transition-all duration-500 hover:scale-110">
-                <Play className="w-6 h-6 md:w-8 md:h-8 mb-1 ml-1" fill="currentColor" />
-                <span className="text-[10px] tracking-[0.2em] uppercase font-semibold mt-1">Play Reel</span>
-              </button>
-            </Interactive>
-          </div>
-          <div className="absolute bottom-10 left-6 md:left-12 z-10 pointer-events-none">
-            <RevealText text="THE PILLAR DIFFERENCE" className="text-xs tracking-[0.3em] uppercase text-white/70 font-semibold mb-3" />
-            <RevealText text="Watch our brand film." className="text-2xl md:text-3xl font-light text-white" delay={100} />
-          </div>
-        </div>
-      </section>
-
-      {/* FAQ Accordion Section */}
-      <Section className="bg-white">
-        <div className="w-[90%] mx-auto">
-          <RevealText text="FREQUENTLY ASKED" className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold mb-16" />
-          <div className="border-t border-zinc-200">
-            {faqData.map((faq, idx) => (
-              <Accordion 
-                key={idx} 
-                question={faq.q} 
-                answer={faq.a} 
-                isOpen={openFaqIndex === idx}
-                onClick={() => setOpenFaqIndex(openFaqIndex === idx ? null : idx)}
-              />
-            ))}
-          </div>
-        </div>
-      </Section>
-
-      {/* Insights / Journal Section */}
-      <Section className="bg-zinc-50 border-t border-zinc-200">
-        <div className="flex justify-between items-end mb-20">
-          <RevealText text="JOURNAL & INSIGHTS" className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold" />
-          <Interactive className="hidden md:flex items-center gap-2 cursor-pointer text-zinc-950 hover:opacity-50 transition-opacity">
-            <span className="text-xs tracking-[0.2em] uppercase font-semibold">Read All</span>
-          </Interactive>
-        </div>
-        <div className="grid md:grid-cols-3 gap-12">
-          {insightsData.map((insight, idx) => (
-            <Interactive key={idx} className="group cursor-pointer border-t border-zinc-200 pt-8">
-              <div className="flex justify-between items-center mb-6">
-                <RevealText text={insight.category} delay={idx * 100} className="text-[10px] tracking-widest uppercase font-semibold text-zinc-400" />
-                <RevealText text={insight.date} delay={idx * 100 + 50} className="text-[10px] tracking-widest uppercase font-semibold text-zinc-400" />
-              </div>
-              <RevealText text={insight.title} delay={idx * 100 + 100} className="text-2xl font-light text-zinc-950 group-hover:text-zinc-500 transition-colors duration-500 pr-8" />
-            </Interactive>
-          ))}
-        </div>
-      </Section>
-
-      {/* NEW: Partner / Press Section */}
-      <Section className="bg-white border-t border-zinc-200 text-center" noVerticalPadding>
-         <div className="py-24 md:py-32">
-            <RevealText text="AS FEATURED IN" className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold mb-12" />
-            <div className="flex flex-wrap justify-center items-center gap-12 md:gap-24 opacity-50 grayscale">
-                <span className="text-2xl md:text-3xl font-bold tracking-tighter">ArchDigest</span>
-                <span className="text-2xl md:text-3xl font-serif italic">Home & Garden</span>
-                <span className="text-2xl md:text-3xl font-light uppercase tracking-widest">Dwell</span>
-                <span className="text-2xl md:text-3xl font-black tracking-tight">VOGUE<span className="font-light">LIVING</span></span>
-            </div>
-         </div>
-      </Section>
-
-      {/* Massive CTA Section */}
-      <Section className="bg-[#fafafa] border-t border-zinc-200" innerClassName="flex flex-col items-center text-center">
-        <RevealText text="START YOUR PROJECT" className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold mb-8" />
-        <Interactive onClick={() => navigate('contact')}>
-          <h2 className="text-6xl md:text-8xl lg:text-[10vw] font-light tracking-tighter cursor-pointer hover:opacity-50 transition-opacity duration-500 text-zinc-950 mb-12 leading-none">
-            Let's Talk.
-          </h2>
-        </Interactive>
-        <p className="text-zinc-500 text-lg md:text-xl font-light max-w-md">Schedule a complimentary consultation to discuss your land, vision, or investment strategy.</p>
-      </Section>
-    </div>
-  );
-};
-
-const AboutPage = () => (
-  <div className="animate-in fade-in duration-1000 bg-white min-h-screen pt-32 md:pt-48 pb-32">
-    <Section noVerticalPadding>
-      <RevealText text="OUR STORY" className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold mb-8" />
-      <RevealText text="Building foundations" className="text-5xl md:text-7xl font-light tracking-tight text-zinc-950" />
-      <RevealText text="for the future." className="text-5xl md:text-7xl font-light tracking-tight text-zinc-950 mb-24" delay={100} />
-
-      <div className="grid lg:grid-cols-2 gap-16 items-start mb-32">
-        <div>
-          <RevealText text="Pillar Properties Ltd is a premier residential development and construction company based in the heart of Auckland." className="text-2xl font-light text-zinc-950 leading-relaxed mb-8" />
-          <RevealText text="While our brand name is new to the market, the foundation of our company is built on extensive industry experience. For over seven years, our dedicated team has been instrumental in delivering more than 600 homes across the region." className="text-lg text-zinc-500 font-light leading-relaxed mb-8" delay={100} />
-          <RevealText text="We don't just build houses; we design, develop, build, and manage high-quality homes that cater to modern lifestyles. Our core philosophy ensures that every project we undertake is functional, aesthetically pleasing, and above all, affordable without compromising on the premium feel." className="text-lg text-zinc-500 font-light leading-relaxed" delay={200} />
-        </div>
-        <div className="w-full h-[400px] md:h-[600px] rounded-3xl overflow-hidden shadow-sm">
-          <UnveilImage src="https://images.unsplash.com/photo-1503387762-592deb58ef4e?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80" alt="Architectural Structure" className="w-full h-full object-cover" />
-        </div>
-      </div>
-
-      <RevealText text="CORE PHILOSOPHY" className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold mb-16" />
-      <div className="grid md:grid-cols-3 gap-12 border-t border-zinc-200 pt-16">
-        {valuesData.map((val, idx) => (
-          <div key={idx}>
-            <RevealText text={val.num} className="text-4xl font-thin text-zinc-300 mb-6" />
-            <RevealText text={val.title} className="text-2xl font-light text-zinc-950 mb-4" />
-            <RevealText text={val.desc} className="text-zinc-500 font-light leading-relaxed" />
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-40">
-        <RevealText text="LEADERSHIP" className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold mb-16" />
-        <div className="grid md:grid-cols-3 gap-12 border-t border-zinc-200 pt-16">
-          {teamData.map((member, idx) => (
-            <Interactive key={idx} className="group">
-              <div className="w-full aspect-[3/4] overflow-hidden mb-6 bg-zinc-100 rounded-3xl shadow-sm">
-                <img src={member.image} alt={member.name} className="w-full h-full object-cover grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700 ease-out" />
-              </div>
-              <RevealText text={member.name} className="text-2xl font-light text-zinc-950 mb-1" />
-              <RevealText text={member.role} className="text-xs tracking-widest uppercase text-zinc-400 font-semibold" delay={100} />
-            </Interactive>
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-40">
-        <RevealText text="MILESTONES" className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold mb-16" />
-        <div className="border-t border-zinc-200 pt-16 space-y-16">
-          {milestonesData.map((milestone, idx) => (
-            <div key={idx} className="grid md:grid-cols-4 gap-8 md:gap-12 items-start group">
-              <RevealText text={milestone.year} className="text-4xl md:text-5xl font-thin text-zinc-300 group-hover:text-zinc-950 transition-colors duration-500" />
-              <div className="md:col-span-3 border-l border-zinc-200 pl-8 md:pl-12">
-                <RevealText text={milestone.title} className="text-2xl font-light text-zinc-950 mb-4" />
-                <RevealText text={milestone.desc} className="text-zinc-500 font-light leading-relaxed max-w-2xl" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-40">
-        <RevealText text="RECOGNITION" className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold mb-16" />
-        <div className="grid md:grid-cols-3 gap-8 border-t border-zinc-200 pt-16">
-          {awardsData.map((award, idx) => (
-            <div key={idx} className="bg-[#fafafa] p-8 md:p-12 rounded-3xl border border-zinc-100 hover:border-zinc-300 transition-colors duration-500">
-              <RevealText text={award.year} className="text-xs tracking-[0.2em] uppercase text-zinc-400 font-semibold mb-6" />
-              <RevealText text={award.title} className="text-xl md:text-2xl font-light text-zinc-950 mb-4" />
-              <RevealText text={award.category} className="text-sm text-zinc-500 font-light" />
-            </div>
-          ))}
-        </div>
-      </div>
-    </Section>
-
-    <Section className="bg-zinc-950 text-white mt-32 md:mt-40 rounded-[2rem] md:rounded-[3rem] shadow-xl mx-4 md:mx-12 lg:mx-16" innerClassName="flex flex-col md:flex-row gap-16 items-center">
-      <div className="w-full md:w-1/2">
-        <RevealText text="SUSTAINABILITY" className="text-xs tracking-[0.3em] uppercase text-zinc-500 font-semibold mb-8" />
-        <RevealText text="Building for the next century." className="text-4xl md:text-6xl font-light tracking-tight mb-8 text-zinc-200" />
-        <RevealText text="Our commitment extends beyond aesthetics. We integrate passive heating, solar readiness, and ethically sourced timber into our standard specifications, ensuring a minimal footprint and maximum efficiency." className="text-lg text-zinc-400 font-light leading-relaxed mb-8" delay={100} />
-      </div>
-      <div className="w-full md:w-1/2 h-[400px] rounded-3xl overflow-hidden">
-          <UnveilImage src="https://images.unsplash.com/photo-1518780664697-55e3ad937233?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80" alt="Sustainable details" className="w-full h-full object-cover opacity-80" />
-      </div>
-    </Section>
-
-    {/* NEW: Culture & Community */}
-    <Section className="bg-white mt-32 md:mt-40">
-      <RevealText text="CULTURE" className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold mb-8" />
-      <div className="grid md:grid-cols-2 gap-16 items-center">
-        <div className="order-2 md:order-1 h-[400px] md:h-[500px] rounded-3xl overflow-hidden shadow-sm">
-           <UnveilImage src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80" alt="Team Culture" className="w-full h-full object-cover" />
-        </div>
-        <div className="order-1 md:order-2">
-          <RevealText text="Beyond the blueprint." className="text-4xl md:text-6xl font-light tracking-tight text-zinc-950 mb-8" />
-          <RevealText text="We foster a collaborative environment where architects, project managers, and builders work side-by-side. Our commitment extends to the local Auckland community through active sponsorship of sustainable design initiatives and youth trade apprenticeships." className="text-lg text-zinc-500 font-light leading-relaxed" />
-        </div>
-      </div>
-    </Section>
-
-    <Section className="bg-[#fafafa] border-t border-zinc-200 mt-32 md:mt-40 text-center" innerClassName="flex flex-col items-center">
-        <RevealText text="CAREERS" className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold mb-8" />
-        <RevealText text="Build with us." className="text-5xl md:text-7xl font-light tracking-tight text-zinc-950 mb-8" />
-        <RevealText text="We are always looking for visionary architects, rigorous project managers, and master builders to join our growing team." className="text-xl text-zinc-500 font-light max-w-2xl leading-relaxed mb-12" delay={100} />
-        <Interactive>
-          <button className="bg-zinc-950 text-white px-8 py-4 text-xs tracking-[0.2em] uppercase font-semibold rounded-full hover:bg-zinc-800 transition-colors flex items-center gap-2">
-            View Open Positions <ArrowRight className="w-4 h-4" />
-          </button>
-        </Interactive>
-    </Section>
-  </div>
-);
-
-const ServicesPage = () => (
-  <div className="animate-in fade-in duration-1000 bg-[#fafafa] min-h-screen pt-32 md:pt-48 pb-32">
-    <Section noVerticalPadding>
-      <RevealText text="OUR EXPERTISE" className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold mb-8" />
-      <RevealText text="End-to-end" className="text-5xl md:text-7xl font-light tracking-tight text-zinc-950" />
-      <RevealText text="development." className="text-5xl md:text-7xl font-light tracking-tight text-zinc-950 mb-32" delay={100} />
-
-      <div className="space-y-32">
-        {servicesData.map((service, idx) => (
-          <div key={idx} className={`flex flex-col ${idx % 2 === 1 ? 'lg:flex-row-reverse' : 'lg:flex-row'} items-center gap-16 lg:gap-24`}>
-            <div className="w-full lg:w-1/2 h-[400px] md:h-[500px] rounded-3xl overflow-hidden shadow-sm">
-              <UnveilImage src={service.image} alt={service.title} className="w-full h-full object-cover" />
-            </div>
-            <div className="w-full lg:w-1/2">
-              <RevealText text={`0${idx + 1}`} className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold mb-6" />
-              <RevealText text={service.title} className="text-4xl md:text-5xl font-light text-zinc-950 mb-6" />
-              <RevealText text={service.desc} className="text-xl text-zinc-500 font-light leading-relaxed mb-8" />
-              <ul className="space-y-4 border-t border-zinc-200 pt-8">
-                {service.features?.map((item, i) => (
-                   <li key={i} className="flex items-center text-zinc-600 font-light">
-                      <span className="w-1.5 h-1.5 bg-zinc-950 rounded-full mr-4"></span>
-                      <RevealText text={item} delay={i * 50} />
-                   </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-40 border-t border-zinc-200 pt-32">
-        <RevealText text="THE PILLAR ADVANTAGE" className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold mb-16" />
-        <div className="grid md:grid-cols-2 gap-24">
-          <div>
-             <RevealText text="Why partner with us." className="text-4xl md:text-6xl font-light tracking-tight text-zinc-950 mb-8" />
-             <RevealText text="We eliminate the friction typically associated with property development. By consolidating design, consent, and construction under one roof, we drastically reduce timelines and mitigate financial risk." className="text-xl text-zinc-500 font-light leading-relaxed" delay={100} />
-          </div>
-          <div className="space-y-12">
-            {[
-              { label: 'Single Point of Contact', desc: 'No more juggling architects, engineers, and builders.' },
-              { label: 'Fixed Price Certainty', desc: 'Comprehensive scoping means no unexpected variations.' },
-              { label: 'Speed to Market', desc: 'Parallel processing of consents and procurement saves months.' }
-            ].map((adv, idx) => (
-              <div key={idx} className="border-b border-zinc-200 pb-8">
-                <RevealText text={adv.label} className="text-2xl font-light text-zinc-950 mb-2" delay={idx * 100} />
-                <RevealText text={adv.desc} className="text-zinc-500 font-light" delay={idx * 100 + 50} />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* NEW: Featured Case Study */}
-      <div className="mt-40 border-t border-zinc-200 pt-32">
-        <RevealText text="CASE STUDY" className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold mb-16" />
-        <div className="bg-zinc-950 rounded-3xl overflow-hidden text-white flex flex-col md:flex-row shadow-xl">
-          <div className="w-full md:w-1/2 p-12 md:p-16 lg:p-24 flex flex-col justify-center">
-             <RevealText text="The Epsom Transformation" className="text-3xl md:text-5xl font-light tracking-tight mb-6" />
-             <RevealText text="How we took a subdivided 400sqm site and delivered a multi-award winning luxury family home within a strict 9-month timeframe, completely managing the resource consent process." className="text-zinc-400 font-light leading-relaxed mb-8" delay={100} />
-             <Interactive>
-               <button className="flex items-center gap-2 text-xs tracking-widest uppercase font-semibold hover:text-zinc-300 transition-colors">
-                 Read Full Study <ArrowRight className="w-4 h-4" />
-               </button>
-             </Interactive>
-          </div>
-          <div className="w-full md:w-1/2 h-[400px] md:h-auto relative group">
-             <img src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80" alt="Case Study" className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-[2s] ease-out" />
-          </div>
-        </div>
-      </div>
-    </Section>
-
-    <Section className="bg-zinc-50 border-t border-zinc-200 mt-32 md:mt-40 text-center">
-      <RevealText text="OUR PARTNERS" className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold mb-16 text-center" />
-      <div className="grid md:grid-cols-3 gap-12 text-center">
-        {[
-          { title: 'Private Homebuyers', desc: 'Families looking for bespoke, architectural standalone homes.' },
-          { title: 'Property Investors', desc: 'Individuals seeking high-yield, low-maintenance townhouses.' },
-          { title: 'Landowners', desc: 'Owners looking to unlock the equity in their land via subdivision.' }
-        ].map((type, idx) => (
-            <div key={idx}>
-              <RevealText text={type.title} className="text-2xl font-light text-zinc-950 mb-4" />
-              <RevealText text={type.desc} className="text-zinc-500 font-light leading-relaxed" />
-            </div>
-        ))}
-      </div>
-    </Section>
-  </div>
-);
-
-const ProjectsPage = () => (
-  <div className="animate-in fade-in duration-1000 bg-[#fafafa] min-h-screen pt-32 md:pt-48 pb-32">
-    <Section noVerticalPadding>
-      <RevealText text="PORTFOLIO" className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold mb-8" />
-      <RevealText text="Selected Works." className="text-5xl md:text-7xl font-light tracking-tight text-zinc-950 mb-24" />
-
-      <div className="grid md:grid-cols-2 gap-x-12 gap-y-24">
-        {projectsData.map((project, idx) => (
-          <Interactive key={project.id} className="group cursor-pointer">
-            <div className={`w-full ${idx % 2 === 1 ? 'md:mt-32' : ''}`}>
-              <UnveilImage src={project.image} alt={project.title} className="w-full aspect-[4/5] md:aspect-[3/4] mb-8 rounded-3xl shadow-sm" />
-              <div className="flex justify-between items-start border-t border-zinc-200 pt-6">
-                <div>
-                  <h3 className="text-2xl font-light text-zinc-950 mb-2">{project.title}</h3>
-                  <p className="text-zinc-500 text-sm">{project.location}</p>
-                </div>
-                <span className="text-xs tracking-widest uppercase text-zinc-400 font-semibold">{project.status}</span>
-              </div>
-            </div>
-          </Interactive>
-        ))}
-      </div>
-
-      <div className="mt-40 pt-32 border-t border-zinc-200">
-        <RevealText text="ON THE HORIZON" className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold mb-16" />
-        <RevealText text="Future Developments." className="text-4xl md:text-6xl font-light tracking-tight text-zinc-950 mb-16" />
-        
-        <div className="flex flex-col">
-          {futureProjectsData.map((proj, idx) => (
-            <div key={idx} className="group flex flex-col md:flex-row justify-between items-start md:items-center py-8 border-b border-zinc-200 hover:bg-zinc-50 transition-colors px-4 -mx-4 cursor-default">
-              <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-12 w-full">
-                <RevealText text={proj.title} delay={idx * 50} className="text-2xl md:text-3xl font-light text-zinc-950" />
-                <RevealText text={proj.location} delay={idx * 50 + 50} className="text-sm tracking-widest uppercase text-zinc-500 font-semibold" />
-              </div>
-              <div className="mt-4 md:mt-0 flex-shrink-0">
-                <RevealText text={`Expected ${proj.expected}`} delay={idx * 50 + 100} className="text-xs tracking-[0.2em] uppercase text-zinc-400 font-semibold bg-white border border-zinc-200 px-4 py-2 rounded-full" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* NEW: Project Statistics / Impact */}
-      <div className="mt-40 pt-32 border-t border-zinc-200">
-         <RevealText text="OUR IMPACT" className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold mb-16" />
-         <div className="grid md:grid-cols-4 gap-12 bg-zinc-950 rounded-3xl p-12 lg:p-16 text-white shadow-xl">
-            {[
-              { val: '$200M+', label: 'Gross Development Value' },
-              { val: '600+', label: 'Dwellings Completed' },
-              { val: '12', label: 'Suburbs Transformed' },
-              { val: '100%', label: 'Delivery Rate' }
-            ].map((stat, idx) => (
-              <div key={idx} className="flex flex-col">
-                <RevealText text={stat.val} delay={idx * 100} className="text-4xl md:text-5xl lg:text-6xl font-light text-zinc-200 mb-4" />
-                <RevealText text={stat.label} delay={idx * 100 + 50} className="text-[10px] md:text-xs tracking-[0.2em] uppercase text-zinc-500 font-semibold" />
-              </div>
-            ))}
-         </div>
-      </div>
-    </Section>
-  </div>
-);
-
-const GalleryPage = () => (
-  <div className="animate-in fade-in duration-1000 bg-[#fafafa] min-h-screen pt-32 md:pt-48 pb-32">
-    <Section noVerticalPadding>
-      <RevealText text="GALLERY" className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold mb-8" />
-      <RevealText text="Visual Archive." className="text-5xl md:text-7xl font-light tracking-tight text-zinc-950 mb-24" />
-
-      <div className="columns-1 md:columns-2 lg:columns-3 gap-6 space-y-6">
-        {galleryData.map((src, idx) => (
-          <Interactive key={idx} className="break-inside-avoid relative group overflow-hidden block rounded-2xl md:rounded-3xl bg-zinc-200 shadow-sm">
-            <UnveilImage src={src} alt={`Gallery Image ${idx + 1}`} className="w-full h-auto object-cover transition-transform duration-[2.5s] group-hover:scale-105 ease-[cubic-bezier(0.16,1,0.3,1)]" />
-            <div className="absolute inset-0 bg-zinc-950/0 group-hover:bg-zinc-950/30 transition-colors duration-500 flex items-center justify-center">
-              <Plus className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-all duration-500 transform scale-50 group-hover:scale-100" strokeWidth={1} />
-            </div>
-          </Interactive>
-        ))}
-      </div>
-
-      {/* NEW: Motion / Cinematic */}
-      <div className="mt-40 pt-32 border-t border-zinc-200">
-        <RevealText text="IN MOTION" className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold mb-16" />
-        <div className="w-full aspect-video md:h-[700px] rounded-3xl overflow-hidden relative group bg-zinc-950 shadow-sm">
-           <UnveilVideo 
-             src="https://cdn.coverr.co/videos/coverr-walking-through-a-modern-house-2525/1080p.mp4" 
-             className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-1000"
-           />
-           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-20 h-20 bg-white/10 backdrop-blur-md rounded-full flex items-center justify-center border border-white/20 transition-transform duration-500 group-hover:scale-110">
-                 <Play className="w-8 h-8 text-white ml-1" fill="currentColor" />
-              </div>
-           </div>
-        </div>
-      </div>
-    </Section>
-  </div>
-);
-  
-const ContactPage = () => {
-  // AI State
-  const [aiInput, setAiInput] = useState('');
-  const [aiOutput, setAiOutput] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [enquiryMessage, setEnquiryMessage] = useState('');
-  const [activeTab, setActiveTab] = useState('direct');
-
-  const handleGenerate = async () => {
-    if (!aiInput.trim()) return;
-    setIsGenerating(true);
-    setAiOutput('');
-    const result = await generateAIBrief(aiInput);
-    setAiOutput(result);
-    setIsGenerating(false);
-  };
-
-  const attachToEnquiry = () => {
-    setEnquiryMessage(`AI GENERATED BRIEF:\n${aiOutput}\n\nADDITIONAL NOTES:\n`);
-    setActiveTab('direct');
-  };
-
-  return (
-    <div className="animate-in fade-in duration-1000 bg-white min-h-screen pt-32 md:pt-48 pb-32">
-      <Section noVerticalPadding>
-        <div className="grid lg:grid-cols-2 gap-24">
-          
-          {/* Left Column: Info & Tab Toggles */}
-          <div>
-            <RevealText text="CONTACT" className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold mb-8" />
-            <RevealText text="Start the" className="text-5xl md:text-7xl font-light tracking-tight text-zinc-950" />
-            <RevealText text="conversation." className="text-5xl md:text-7xl font-light tracking-tight text-zinc-950 mb-16" delay={100} />
-            
-            <div className="flex gap-8 border-b border-zinc-200 mb-12">
-              <Interactive>
-                <button 
-                  onClick={() => setActiveTab('direct')}
-                  className={`pb-4 text-xs tracking-[0.2em] uppercase font-semibold transition-colors relative ${activeTab === 'direct' ? 'text-zinc-950' : 'text-zinc-400 hover:text-zinc-600'}`}
-                >
-                  Direct Enquiry
-                  {activeTab === 'direct' && <span className="absolute bottom-0 left-0 w-full h-[1px] bg-zinc-950"></span>}
-                </button>
-              </Interactive>
-              <Interactive>
-                <button 
-                  onClick={() => setActiveTab('ai')}
-                  className={`pb-4 text-xs tracking-[0.2em] uppercase font-semibold transition-colors relative flex items-center gap-2 ${activeTab === 'ai' ? 'text-zinc-950' : 'text-zinc-400 hover:text-zinc-600'}`}
-                >
-                  ✨ AI Architect
-                  {activeTab === 'ai' && <span className="absolute bottom-0 left-0 w-full h-[1px] bg-zinc-950"></span>}
-                </button>
-              </Interactive>
-            </div>
-
-            <div className="space-y-12">
-              {[
-                { label: 'Visit', val: '123 Architecture Way\nAuckland CBD 1010' },
-                { label: 'Call', val: '+64 9 123 4567' },
-                { label: 'Email', val: 'info@pillarproperties.co.nz' }
-              ].map((item, idx) => (
-                <div key={idx} className="border-t border-zinc-200 pt-6">
-                  <RevealText text={item.label} className="text-xs tracking-[0.2em] uppercase text-zinc-400 font-semibold mb-4" />
-                  <RevealText text={item.val} className="text-xl md:text-2xl font-light text-zinc-950 whitespace-pre-line" delay={100} />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Right Column: Dynamic Form / AI Interface */}
-          <div className="lg:mt-32 bg-[#fafafa] p-8 md:p-16 border border-zinc-100 min-h-[600px] flex flex-col rounded-3xl shadow-sm">
-            {activeTab === 'direct' ? (
-              <form className="space-y-12 animate-in fade-in duration-500" onSubmit={(e) => e.preventDefault()}>
-                <div className="relative">
-                  <input type="text" placeholder="Name" required className="w-full bg-transparent border-b border-zinc-300 py-4 text-xl font-light text-zinc-950 placeholder-zinc-400 focus:outline-none focus:border-zinc-950 transition-colors" />
-                </div>
-                <div className="relative">
-                  <input type="email" placeholder="Email Address" required className="w-full bg-transparent border-b border-zinc-300 py-4 text-xl font-light text-zinc-950 placeholder-zinc-400 focus:outline-none focus:border-zinc-950 transition-colors" />
-                </div>
-                <div className="relative">
-                  <select defaultValue="" className="w-full bg-transparent border-b border-zinc-300 py-4 text-xl font-light text-zinc-400 focus:outline-none focus:border-zinc-950 focus:text-zinc-950 transition-colors appearance-none cursor-pointer">
-                    <option value="" disabled>Nature of Enquiry</option>
-                    <option value="buy">Buying a Home</option>
-                    <option value="dev">Development Partnership</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-                <div className="relative">
-                  <textarea 
-                    value={enquiryMessage}
-                    onChange={(e) => setEnquiryMessage(e.target.value)}
-                    placeholder="Project Details" 
-                    rows={4} 
-                    required 
-                    className="w-full bg-transparent border-b border-zinc-300 py-4 text-xl font-light text-zinc-950 placeholder-zinc-400 focus:outline-none focus:border-zinc-950 transition-colors resize-none"
-                  ></textarea>
-                </div>
-                <Interactive>
-                  <button type="submit" className="w-full bg-zinc-950 text-white py-6 text-sm tracking-[0.2em] uppercase font-semibold hover:bg-zinc-800 transition-colors rounded-2xl">
-                    Submit Enquiry
-                  </button>
-                </Interactive>
-              </form>
-            ) : (
-              <div className="flex flex-col h-full animate-in fade-in slide-in-from-right-8 duration-500">
-                <h3 className="text-2xl font-light text-zinc-950 mb-4">Vision to Reality.</h3>
-                <p className="text-zinc-500 font-light mb-8">Describe your ideal property, lifestyle requirements, or investment goals. Our AI Architect will instantly draft a preliminary project brief tailored to Auckland.</p>
-                
-                <textarea 
-                  value={aiInput}
-                  onChange={(e) => setAiInput(e.target.value)}
-                  placeholder="e.g. A 4-bedroom minimalist home in Epsom with a pool, focusing on natural light and concrete materials..." 
-                  rows={4} 
-                  className="w-full bg-transparent border-b border-zinc-300 py-4 text-xl font-light text-zinc-950 placeholder-zinc-400 focus:outline-none focus:border-zinc-950 transition-colors resize-none mb-8"
-                ></textarea>
-                
-                {!aiOutput && !isGenerating && (
-                  <Interactive>
-                    <button 
-                      onClick={handleGenerate}
-                      className="w-full bg-zinc-100 text-zinc-950 border border-zinc-200 py-6 text-sm tracking-[0.2em] uppercase font-semibold hover:bg-zinc-200 transition-colors flex justify-center items-center gap-2 rounded-2xl"
-                    >
-                      ✨ Generate Brief
-                    </button>
-                  </Interactive>
-                )}
-
-                {isGenerating && (
-                  <div className="flex justify-center items-center py-12">
-                    <div className="w-6 h-6 border-2 border-zinc-300 border-t-zinc-950 rounded-full animate-spin"></div>
-                    <span className="ml-4 text-xs tracking-widest uppercase text-zinc-400 font-semibold animate-pulse">Consulting Architect...</span>
-                  </div>
-                )}
-
-                {aiOutput && !isGenerating && (
-                  <div className="flex-1 flex flex-col animate-in fade-in duration-700">
-                    <div className="flex-1 bg-white p-6 border border-zinc-200 overflow-y-auto mb-8 rounded-2xl">
-                      <pre className="whitespace-pre-wrap font-sans text-sm text-zinc-600 leading-relaxed">
-                        {aiOutput}
-                      </pre>
-                    </div>
-                    <Interactive>
-                      <button 
-                        onClick={attachToEnquiry}
-                        className="w-full bg-zinc-950 text-white py-6 text-sm tracking-[0.2em] uppercase font-semibold hover:bg-zinc-800 transition-colors flex justify-center items-center gap-2 rounded-2xl"
-                      >
-                        Attach to Enquiry <ArrowRight className="w-4 h-4" />
-                      </button>
-                    </Interactive>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      </Section>
-
-      {/* Map & Locations Section */}
-      <Section className="bg-white border-t border-zinc-200 mt-16 md:mt-32" noVerticalPadding>
-        <div className="py-24 md:py-32 grid lg:grid-cols-3 gap-16 items-start">
-          <div className="lg:col-span-1">
-            <RevealText text="OUR LOCATIONS" className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold mb-8" />
-            <RevealText text="Find us across Auckland." className="text-4xl md:text-5xl font-light tracking-tight text-zinc-950 mb-12" />
-            
-            <div className="space-y-8">
-              <div>
-                <h4 className="text-lg font-medium text-zinc-950 mb-2">Head Office</h4>
-                <p className="text-sm text-zinc-500 font-light">123 Architecture Way<br/>Auckland CBD 1010</p>
-              </div>
-              <div className="border-t border-zinc-200 pt-8">
-                <h4 className="text-lg font-medium text-zinc-950 mb-4">Active Development Sites</h4>
-                <ul className="space-y-4">
-                  <li className="flex items-start gap-3 text-sm text-zinc-500 font-light">
-                    <MapPin className="w-4 h-4 mt-0.5 text-zinc-400 shrink-0" />
-                    Parnell Ascend, Parnell
-                  </li>
-                  <li className="flex items-start gap-3 text-sm text-zinc-500 font-light">
-                    <MapPin className="w-4 h-4 mt-0.5 text-zinc-400 shrink-0" />
-                    Orakei Basin Villas, Orakei
-                  </li>
-                  <li className="flex items-start gap-3 text-sm text-zinc-500 font-light">
-                    <MapPin className="w-4 h-4 mt-0.5 text-zinc-400 shrink-0" />
-                    Grey Lynn Urban, Grey Lynn
-                  </li>
-                  <li className="flex items-start gap-3 text-sm text-zinc-500 font-light">
-                    <MapPin className="w-4 h-4 mt-0.5 text-zinc-400 shrink-0" />
-                    Peninsula Terraces, Te Atatu
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
-          
-          <div className="lg:col-span-2 h-[400px] md:h-[600px] bg-zinc-100 rounded-3xl overflow-hidden shadow-sm relative grayscale-[50%] hover:grayscale-0 transition-all duration-700">
-            <iframe 
-              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d102148.9740618037!2d174.68652391054366!3d-36.86214309320956!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x6d0d47e6736a4ceb%3A0x500ef6143a29917!2sAuckland%2C%20New%20Zealand!5e0!3m2!1sen!2sus!4v1709214000000!5m2!1sen!2sus" 
-              width="100%" 
-              height="100%" 
-              style={{ border: 0 }} 
-              allowFullScreen="" 
-              loading="lazy" 
-              referrerPolicy="no-referrer-when-downgrade"
-              className="absolute inset-0 w-full h-full object-cover"
-              title="Auckland Map"
-            ></iframe>
-          </div>
-        </div>
-      </Section>
-
-      {/* NEW: Newsletter / Stay Connected */}
-      <Section className="bg-zinc-950 text-white border-t border-zinc-800 text-center" innerClassName="py-24 md:py-32 flex flex-col items-center">
-         <RevealText text="STAY UPDATED" className="text-xs tracking-[0.3em] uppercase text-zinc-500 font-semibold mb-8" />
-         <RevealText text="Subscribe to our journal." className="text-4xl md:text-5xl font-light tracking-tight text-white mb-8" />
-         <RevealText text="Get the latest insights on Auckland's property market, architectural trends, and exclusive early access to upcoming developments." className="text-zinc-400 font-light max-w-xl leading-relaxed mb-12" delay={100} />
-         
-         <form className="w-full max-w-md flex relative" onSubmit={(e) => e.preventDefault()}>
-           <input type="email" placeholder="Enter your email" className="w-full bg-transparent border-b border-zinc-700 py-4 text-white placeholder-zinc-500 focus:outline-none focus:border-white transition-colors pr-12" required />
-           <button type="submit" className="absolute right-0 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white transition-colors p-2">
-             <ArrowRight className="w-5 h-5" />
-           </button>
-         </form>
-      </Section>
-
-      {/* What Happens Next Section */}
-      <Section className="border-t border-zinc-200 bg-zinc-50 text-center">
-        <div className="max-w-5xl mx-auto">
-          <RevealText text="THE PROCESS" className="text-xs tracking-[0.3em] uppercase text-zinc-400 font-semibold mb-16 text-center" />
-          <RevealText text="What happens next?" className="text-4xl md:text-5xl font-light tracking-tight text-zinc-950 mb-20 text-center" />
-          
-          <div className="grid md:grid-cols-3 gap-12 relative">
-            {/* Desktop connecting line */}
-            <div className="hidden md:block absolute top-6 left-[15%] right-[15%] h-[1px] bg-zinc-200 -z-10"></div>
-            
-            {[
-              { step: '01', title: 'Review', desc: 'Our architecture and development team reviews your enquiry and initial requirements within 24 hours.' },
-              { step: '02', title: 'Consultation', desc: 'We schedule a complimentary 45-minute discovery call to discuss site feasibility and your architectural vision.' },
-              { step: '03', title: 'Proposal', desc: 'We present a high-level conceptual brief, projected timelines, and a structural fee estimate.' }
-            ].map((item, idx) => (
-              <div key={idx} className="relative flex flex-col items-center text-center px-6">
-                <div className="w-12 h-12 bg-white border border-zinc-200 rounded-full flex items-center justify-center text-xs tracking-widest font-semibold text-zinc-950 mb-8">
-                  <RevealText text={item.step} delay={idx * 100} />
-                </div>
-                <RevealText text={item.title} className="text-2xl font-light text-zinc-950 mb-4" delay={idx * 100 + 50} />
-                <RevealText text={item.desc} className="text-sm text-zinc-500 font-light leading-relaxed" delay={idx * 100 + 100} />
-              </div>
-            ))}
-          </div>
-        </div>
-      </Section>
-    </div>
-  );
-};
-
-
-// --- MAIN APP COMPONENT ---
-
-export default function App() {
-  const [currentPage, setCurrentPage] = useState('home');
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
+/**
+ * ULTRA-MINIMAL THEMEABLE CURSOR
+ */
+const CustomCursor = () => {
+  const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isHovering, setIsHovering] = useState(false);
+  const [isHidden, setIsHidden] = useState(false);
 
   useEffect(() => {
-    const styleSheet = document.createElement("style");
-    styleSheet.type = "text/css";
-    styleSheet.innerText = ultraModernStyles;
-    document.head.appendChild(styleSheet);
+    const updatePosition = (e) => {
+      setPosition({ x: e.clientX, y: e.clientY });
+      // Hide the custom cursor when hovering over the interactive map
+      setIsHidden(!!e.target.closest('#global-map'));
+    };
     
-    const handleScroll = () => setScrolled(window.scrollY > 50);
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    
+    const handleMouseOver = (e) => {
+      const isInteractive = e.target.closest('button') || e.target.closest('a') || e.target.closest('.interactive') || e.target.closest('input') || e.target.closest('textarea');
+      setIsHovering(!!isInteractive);
+    };
+
+    window.addEventListener('mousemove', updatePosition);
+    window.addEventListener('mouseover', handleMouseOver);
     return () => {
-      document.head.removeChild(styleSheet);
-      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('mousemove', updatePosition);
+      window.removeEventListener('mouseover', handleMouseOver);
     };
   }, []);
 
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'auto' });
-    setIsMenuOpen(false);
-  }, [currentPage]);
+  return (
+    <>
+      <div
+        className="fixed top-0 left-0 w-1.5 h-1.5 rounded-full pointer-events-none z-[10000] hidden md:block transition-opacity duration-300 cursor-dot"
+        style={{ 
+          transform: `translate(${position.x - 3}px, ${position.y - 3}px)`,
+          opacity: isHidden ? 0 : (isHovering ? 0 : 1)
+        }}
+      />
+      <div
+        className={`fixed top-0 left-0 rounded-full pointer-events-none z-[9999] transition-all duration-500 ease-out hidden md:block border cursor-ring ${
+          isHovering ? 'w-16 h-16' : 'w-8 h-8 opacity-0'
+        }`}
+        style={{ 
+          transform: `translate(${position.x - (isHovering ? 32 : 16)}px, ${position.y - (isHovering ? 32 : 16)}px)`,
+          opacity: isHidden ? 0 : undefined
+        }}
+      />
+    </>
+  );
+};
 
-  const navLinks = ['home', 'about', 'services', 'projects', 'gallery', 'contact'];
+/* ==========================================================================
+   SHARED GLOBAL COMPONENTS (Defined only once to fix errors)
+   ========================================================================== */
+
+const Preloader = ({ finishLoading }) => {
+  const [quote, setQuote] = useState("");
+  const [isFading, setIsFading] = useState(false);
+  const [startProgress, setStartProgress] = useState(false);
+
+  const quotes = [
+    "Engineering atmospheres, architecting experiences.",
+    "The magic resides in the unseen logistics.",
+    "We do not remember days, we remember moments.",
+    "Perfection is achieved when there is nothing left to take away.",
+    "Luxury is the meticulous execution of every detail."
+  ];
+
+  useEffect(() => {
+    setQuote(quotes[Math.floor(Math.random() * quotes.length)]);
+    const progressTimer = setTimeout(() => setStartProgress(true), 100);
+    const fadeTimer = setTimeout(() => setIsFading(true), 2500);
+    const removeTimer = setTimeout(() => finishLoading(), 3500);
+    
+    return () => { 
+      clearTimeout(progressTimer);
+      clearTimeout(fadeTimer); 
+      clearTimeout(removeTimer); 
+    };
+  }, [finishLoading]);
 
   return (
-    <CursorContext.Provider value={{ isHovering, setIsHovering }}>
-      <div className="min-h-screen flex flex-col font-sans text-zinc-950 selection:bg-zinc-950 selection:text-white bg-[#fafafa] overflow-x-hidden relative">
-        
-        <CustomCursor />
+    <div className={`fixed inset-0 z-[9000] bg-[#050505] flex flex-col items-center justify-center px-12 transition-opacity duration-1000 ease-in-out ${isFading ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+      <div className="overflow-hidden mb-8">
+        <h2 className="text-white/80 font-wide font-extralight tracking-[0.2em] uppercase text-xs md:text-sm text-center max-w-2xl leading-relaxed animate-fade-in-up">
+          {quote}
+        </h2>
+      </div>
+      <div className="w-48 md:w-64 h-[1px] bg-white/10 relative overflow-hidden opacity-0 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
+        <div className="absolute top-0 left-0 h-full bg-white transition-all ease-linear" style={{ width: startProgress ? '100%' : '0%', transitionDuration: '2400ms' }} />
+      </div>
+    </div>
+  );
+};
 
-        {/* Minimal Header with Uniform Padding Container */}
-        <header className={`fixed w-full z-50 transition-all duration-700 ease-out px-[3%] ${scrolled ? 'py-2 md:py-4 bg-white/95 backdrop-blur-sm shadow-sm' : 'py-4 md:py-6'}`}>
-          <div className="w-full max-w-[1600px] mx-auto flex justify-between items-center">
-            
-            {/* Logo */}
-            <div className="flex items-center z-10">
-              <Interactive onClick={() => setCurrentPage('home')}>
-                <img 
-                  src="https://static.wixstatic.com/media/548938_1509800225e542a4a2d4144aa68163e9~mv2.png" 
-                  alt="Pillar Properties" 
-                  className={`w-auto cursor-pointer object-contain transition-all duration-700 ${scrolled ? 'h-6 md:h-7' : 'h-7 md:h-9'} ${!scrolled && currentPage === 'home' ? 'brightness-0 invert' : ''}`}
-                />
-              </Interactive>
+const Footer = ({ setCurrentPage }) => {
+  const [ref, isVisible] = useScrollReveal();
+
+  return (
+    <footer className="bg-[#050505] pt-32 2xl:pt-48 pb-12 px-6 md:px-12 2xl:px-24 border-t border-white/5">
+      <div ref={ref} className={`max-w-[2160px] mx-auto transition-all duration-1000 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-20 mb-32 2xl:mb-48">
+          <div>
+            <img 
+              src="https://infinityincevents.com/wp-content/uploads/Logo-Transparent-2048x569.png" 
+              alt="Infinity Inc Logo" 
+              className="h-[50px] md:h-[70px] 2xl:h-[90px] object-contain invert brightness-0 mb-12 opacity-90 cursor-pointer interactive" 
+              onClick={() => setCurrentPage('home')}
+            />
+            <p className="text-[9px] 2xl:text-[10px] font-sans tracking-[0.5em] uppercase text-white/40 mb-8 border-b border-white/10 inline-block pb-3">Initialize Sequence</p>
+            <h2 className="text-5xl md:text-6xl 2xl:text-8xl font-wide font-extralight uppercase tracking-[0.05em] text-white mb-10 leading-none">
+              Let's craft <br/> the <span className="text-transparent custom-stroke-text font-normal">exceptional.</span>
+            </h2>
+            <a href="mailto:info@infinityincevents.com" className="interactive flex items-center w-fit text-xs 2xl:text-sm font-sans tracking-[0.2em] uppercase text-white hover:text-white/50 transition-colors border-b border-white/20 hover:border-white/5 pb-2 group">
+              INFO@INFINITYINCEVENTS.COM
+              <ArrowUpRight className="w-4 h-4 ml-3 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" strokeWidth={1.5} />
+            </a>
+          </div>
+          <div className="grid grid-cols-2 gap-12 md:justify-end">
+            <div className="flex flex-col space-y-5 text-[9px] 2xl:text-[11px] font-sans tracking-[0.3em] uppercase text-white/50">
+              <span className="text-white font-semibold mb-2 border-b border-white/10 pb-3 w-fit">Network</span>
+              <span>Pune (HQ)</span>
+              <span>Mumbai</span>
+              <span>Delhi-NCR</span>
+              <span>Bangalore</span>
+              <span>Goa</span>
             </div>
-
-            {/* Universal Menu Toggle (Hamburger) */}
-            <Interactive className={`z-10 transition-colors duration-500 flex items-center justify-end flex-1 ${!scrolled && currentPage === 'home' ? 'text-white' : 'text-zinc-950'}`}>
-              <button onClick={() => setIsMenuOpen(true)} className="flex items-center gap-3 p-2 -mr-2 group hover:opacity-70 transition-opacity">
-                <span className="text-[10px] md:text-xs tracking-widest uppercase font-medium hidden sm:block mt-0.5">Menu</span>
-                <Menu className="w-6 h-6 md:w-7 md:h-7" />
-              </button>
-            </Interactive>
+            <div className="flex flex-col space-y-5 text-[9px] 2xl:text-[11px] font-sans tracking-[0.3em] uppercase text-white/50">
+              <span className="text-white font-semibold mb-2 border-b border-white/10 pb-3 w-fit">Navigation</span>
+              <button onClick={() => setCurrentPage('home')} className="interactive text-left hover:text-white transition-colors w-fit">Home</button>
+              <button onClick={() => setCurrentPage('about')} className="interactive text-left hover:text-white transition-colors w-fit">About</button>
+              <button onClick={() => setCurrentPage('expertise')} className="interactive text-left hover:text-white transition-colors w-fit">Expertise</button>
+              <button onClick={() => setCurrentPage('gallery')} className="interactive text-left hover:text-white transition-colors w-fit">Gallery</button>
+              <button onClick={() => setCurrentPage('contact')} className="interactive text-left hover:text-white transition-colors w-fit">Contact</button>
+            </div>
           </div>
-        </header>
+        </div>
+        <div className="pt-8 border-t border-white/10 flex flex-col md:flex-row justify-between items-start md:items-center text-[8px] 2xl:text-[10px] font-sans text-white/40 tracking-[0.4em] uppercase gap-4">
+          <span>© {new Date().getFullYear()} Infinity Inc.</span>
+          <span>All Rights Reserved</span>
+        </div>
+      </div>
+    </footer>
+  );
+};
 
-        {/* Menu Backdrop Overlay */}
-        <div 
-          className={`fixed inset-0 bg-zinc-950/30 backdrop-blur-sm z-[90] transition-opacity duration-700 ${isMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
-          onClick={() => setIsMenuOpen(false)}
-        />
+const GlobalMap = () => {
+  const mapRef = useRef(null);
+  const [activeLocation, setActiveLocation] = useState(null);
 
-        {/* Right Side Slide-Out Menu Panel */}
-        <div className={`fixed top-0 right-0 h-full w-full sm:w-[400px] md:w-[450px] bg-zinc-950 z-[100] flex flex-col p-8 md:p-12 transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${isMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-          <div className="flex justify-between items-center w-full">
-            <span className="text-[10px] tracking-[0.3em] uppercase text-zinc-500 font-semibold">Navigation</span>
-            <button onClick={() => setIsMenuOpen(false)} className="text-white hover:text-zinc-400 transition-colors p-2 -mr-2">
-              <X className="w-8 h-8" />
-            </button>
-          </div>
+  useEffect(() => {
+    const initMap = () => {
+      if (!window.L || mapRef.current) return;
+      
+      const map = window.L.map('global-map', {
+        center: [25, 10], // Adjusted center to show more of the global spread
+        zoom: 2.5, // Zoomed out slightly to fit the new global nodes
+        zoomControl: false,
+        attributionControl: false,
+        scrollWheelZoom: false,
+        dragging: true
+      });
+      mapRef.current = map;
+
+      window.L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+        subdomains: 'abcd',
+        maxZoom: 20
+      }).addTo(map);
+
+      const customIcon = window.L.divIcon({
+        className: 'custom-pin',
+        html: '<div style="background-color: white; width: 6px; height: 6px; border-radius: 50%; box-shadow: 0 0 15px 3px rgba(255,255,255,0.7); cursor: pointer;"></div>',
+        iconSize: [6, 6],
+        iconAnchor: [3, 3]
+      });
+
+      const locations = [
+        // Original Nodes
+        { name: "Pune (HQ)", coords: [18.5204, 73.8567], subtitle: "Fintech Leadership Summit", year: "2023", attendees: "1,200 Delegates", setup: "Kinetic LED ceiling with 360° surround staging", description: "A hyper-secure, data-driven environment engineered for top-tier global banking executives." },
+        { name: "Mumbai", coords: [19.0760, 72.8777], subtitle: "The Heritage Union", year: "2024", attendees: "3,500+ VIPs", setup: "Bespoke glasshouse with hanging floral chandeliers", description: "Orchestrated massive stadium-scale infrastructure for India's most high-profile celebrity union." },
+        { name: "Delhi-NCR", coords: [28.7041, 77.1025], subtitle: "Global Auto Expo Reveal", year: "2025", attendees: "8,000+ Visitors", setup: "Holographic car reveals & tiered amphitheater", description: "Executed an immersive, high-decibel launch environment for a flagship electric vehicle reveal." },
+        { name: "Bangalore", coords: [12.9716, 77.5946], subtitle: "DevCon Global", year: "2023", attendees: "12,000 Tech Leaders", setup: "Multi-zone festival layout with RFID tracking", description: "Designed a massive tech playground featuring zero-latency streaming nodes across multiple stages." },
+        { name: "Goa", coords: [15.2993, 74.1240], subtitle: "Private Island Buyout", year: "2022", attendees: "300 Exclusive Guests", setup: "Floating altars & custom-built beach cabanas", description: "Curated an ultra-luxury, multi-day destination wedding retreat with completely invisible logistics." },
+        { name: "Dubai", coords: [25.2048, 55.2708], subtitle: "Web3 World Summit", year: "2024", attendees: "15,000+ Attendees", setup: "Immersive metaverse tunnels & 50ft LED monoliths", description: "Produced a groundbreaking crypto exhibition merging digital art with massive physical architecture." },
+        { name: "London", coords: [51.5074, -0.1278], subtitle: "Luxury Fashion Afterparty", year: "2023", attendees: "800 A-List Celebrities", setup: "Neon lightscapes inside a historic gothic cathedral", description: "Hosted an exclusive VIP gala with high-end talent procurement and strict non-disclosure operations." },
+        { name: "Monaco", coords: [43.7384, 7.4246], subtitle: "The Monaco Estate Vows", year: "2025", attendees: "150 Ultra-HNW Individuals", setup: "Cliffside cantilevered dining deck & orchestrals", description: "Engineered absolute perfection for an intimate, highly secure private wedding over the Mediterranean." },
+        { name: "Singapore", coords: [1.3521, 103.8198], subtitle: "APAC Innovation Retreat", year: "2024", attendees: "500 C-Suite Leaders", setup: "Bio-responsive lighting & sustainable bamboo structures", description: "Architected a seamless cross-border corporate summit focused on future sustainable technologies." },
+        { name: "Bali", coords: [-8.4095, 115.1889], subtitle: "The Oceanfront Vows", year: "2023", attendees: "250 Guests", setup: "Transparent marquee built directly over the surf", description: "Delivered a breathtaking, emotionally resonant celebration precariously engineered on coastal cliffs." },
+        { name: "Abu Dhabi", coords: [24.4539, 54.3773], subtitle: "Desert Arena Concert", year: "2024", attendees: "45,000 Fans", setup: "Massive truss systems with synchronized drone swarms", description: "Created cinematic audiovisual landscapes and stadium-grade infrastructure for an international pop tour." },
+        { name: "Paris", coords: [48.8566, 2.3522], subtitle: "Haute Couture Launch", year: "2025", attendees: "600 Industry Insiders", setup: "Mirrored runways & kinetic floral installations", description: "Bespoke spatial architecture designed to radically amplify a heritage luxury brand's new creative vision." },
+        
+        // Expanded Global Nodes
+        { name: "New York", coords: [40.7128, -74.0060], subtitle: "Wall Street Gala", year: "2024", attendees: "1,500 Elites", setup: "Suspended LED arrays inside a historic bank vault", description: "Orchestrated a hyper-exclusive financial summit merging historic architecture with cyberpunk lighting design." },
+        { name: "Los Angeles", coords: [34.0522, -118.2437], subtitle: "Hollywood Premiere '25", year: "2025", attendees: "2,000 VIPs", setup: "Projection-mapped Hollywood Hills estate", description: "Executed flawless invisible logistics for an A-list movie premiere, featuring 3D holographic red carpets." },
+        { name: "Sydney", coords: [-33.8688, 151.2093], subtitle: "APAC Finance Summit", year: "2023", attendees: "4,500 Delegates", setup: "Harborside transparent marquees & acoustic baffling", description: "Designed a massive corporate engagement overlooking the Opera House, featuring seamless multi-stage broadcasts." },
+        { name: "Cape Town", coords: [-33.9249, 18.4241], subtitle: "The Vineyard Union", year: "2024", attendees: "250 Guests", setup: "Floating glass platforms amidst historic vineyards", description: "Curated a breathtaking destination wedding leveraging the natural topography for a deeply cinematic aesthetic." },
+        { name: "Milan", coords: [45.4642, 9.1900], subtitle: "Fashion Week Showcase", year: "2025", attendees: "800 Industry Insiders", setup: "Kinetic runway with mirrored ceiling installations", description: "Architected a razor-sharp, high-contrast environment designed specifically to amplify a luxury fashion collection." },
+        { name: "Ibiza", coords: [38.9067, 1.4206], subtitle: "Sunset Soundscapes", year: "2022", attendees: "12,000 Fans", setup: "Cliffside multi-tiered staging with laser matrices", description: "Engineered a euphoric electronic music festival with zero-latency visual syncing and heavy acoustic engineering." },
+        { name: "Maldives", coords: [3.2028, 73.2207], subtitle: "Atoll Buyout & Vows", year: "2024", attendees: "100 Ultra-HNW Individuals", setup: "Submerged dining pods and bioluminescent lighting", description: "Delivered absolute discretion and microscopic precision for a week-long royal union on a private atoll." },
+        { name: "Riyadh", coords: [24.7136, 46.6753], subtitle: "Future Tech Expo", year: "2025", attendees: "25,000+ Visitors", setup: "50-foot LED monoliths and VR demonstration zones", description: "Produced a monumental tech exhibition pushing the absolute limits of spatial computing and physical architecture." },
+        { name: "Istanbul", coords: [41.0082, 28.9784], subtitle: "Bosphorus Royal Gala", year: "2023", attendees: "600 VIPs", setup: "Palace takeover with custom-built docking pavilions", description: "Bridged two continents with a seamlessly orchestrated luxury event at a historic waterfront palace." },
+        { name: "Kyoto", coords: [35.0116, 135.7681], subtitle: "Zenith Executive Retreat", year: "2022", attendees: "50 C-Suite Leaders", setup: "Minimalist bamboo pavilions and ambient soundscapes", description: "Crafted a hyper-focused, sensory-deprived environment for top-tier executives to strategize in absolute silence." }
+      ];
+
+      locations.forEach(loc => {
+        const marker = window.L.marker(loc.coords, { icon: customIcon })
+          .addTo(map)
+          .bindTooltip(loc.name, { direction: 'top', className: 'custom-tooltip', offset: [0, -10] });
           
-          <div className="flex flex-col items-start justify-center gap-8 mt-12 mb-12 flex-1 w-full">
-            {navLinks.map((link, i) => (
-              <div 
-                key={link} 
-                onClick={() => setCurrentPage(link)} 
-                className={`text-4xl md:text-5xl font-light tracking-tight text-white uppercase cursor-pointer text-left transition-colors duration-500 hover:text-zinc-400 ${isMenuOpen ? 'translate-x-0 opacity-100' : 'translate-x-12 opacity-0'}`}
-                style={{ transitionDelay: `${100 + (i * 75)}ms`, transitionProperty: 'opacity, transform, color' }}
-              >
-                {link}
+        marker.on('click', () => {
+          setActiveLocation(loc);
+        });
+      });
+      
+      // Close box if clicking elsewhere on the map
+      map.on('click', () => {
+        setActiveLocation(null);
+      });
+    };
+
+    if (!document.getElementById('leaflet-css')) {
+      const link = document.createElement('link');
+      link.id = 'leaflet-css';
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+    }
+
+    if (!document.getElementById('leaflet-js')) {
+      const script = document.createElement('script');
+      script.id = 'leaflet-js';
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.onload = initMap;
+      document.head.appendChild(script);
+    } else {
+      initMap();
+    }
+
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, []);
+
+  return (
+    <div className="w-full h-[50vh] md:h-[60vh] 2xl:h-[70vh] rounded-2xl overflow-hidden border border-white/5 relative z-10 group mb-20 bg-[#050505] interactive">
+      <div id="global-map" className="w-full h-full z-0 opacity-70 group-hover:opacity-100 transition-opacity duration-1000 cursor-grab active:cursor-grabbing"></div>
+      <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_100px_rgba(5,5,5,1)] z-10"></div>
+      
+      {/* Interactive Location Brief Box */}
+      <div className={`absolute bottom-6 left-6 md:bottom-10 md:left-10 z-20 bg-[#050505]/95 backdrop-blur-xl border border-white/10 rounded-2xl p-6 md:p-8 w-[calc(100%-3rem)] md:w-[28rem] transition-all duration-500 ease-[cubic-bezier(0.19,1,0.22,1)] shadow-2xl ${activeLocation ? 'translate-y-0 opacity-100 pointer-events-auto' : 'translate-y-10 opacity-0 pointer-events-none'}`}>
+        {activeLocation && (
+          <>
+            <button 
+              onClick={(e) => { e.stopPropagation(); setActiveLocation(null); }}
+              className="absolute top-6 right-6 text-white/40 hover:text-white transition-colors interactive"
+            >
+              <X size={18} strokeWidth={1.5} />
+            </button>
+            <div className="pr-6">
+              <div className="flex items-center justify-between mb-4">
+                <p className="font-sans text-[9px] tracking-[0.4em] uppercase text-white/40">{activeLocation.name}</p>
+                <span className="font-mono text-[9px] tracking-[0.2em] text-white/30 border border-white/10 px-2 py-1 rounded-sm">{activeLocation.year}</span>
+              </div>
+              <h4 className="text-xl md:text-2xl 2xl:text-3xl font-wide font-extralight uppercase tracking-[0.05em] text-white mb-6 leading-tight">{activeLocation.subtitle}</h4>
+              
+              <div className="grid grid-cols-2 gap-4 mb-6 border-y border-white/10 py-5">
+                <div>
+                  <p className="font-sans text-[8px] tracking-[0.3em] uppercase text-white/30 mb-2">Scale</p>
+                  <p className="font-sans text-[10px] tracking-[0.1em] text-white/80">{activeLocation.attendees}</p>
+                </div>
+                <div>
+                  <p className="font-sans text-[8px] tracking-[0.3em] uppercase text-white/30 mb-2">Setup</p>
+                  <p className="font-sans text-[10px] tracking-[0.1em] text-white/80 leading-relaxed pr-2">{activeLocation.setup}</p>
+                </div>
+              </div>
+              
+              <p className="font-sans text-[10px] 2xl:text-xs tracking-[0.15em] uppercase text-white/60 leading-relaxed">
+                {activeLocation.description}
+              </p>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const GlobalNodes = () => {
+  const [ref, isVisible] = useScrollReveal();
+  const nodes = [
+    { city: "Pune", type: "HQ & Design Lab", email: "pune@infinityincevents.com" },
+    { city: "Mumbai", type: "Showbiz Division", email: "mumbai@infinityincevents.com" },
+    { city: "Delhi-NCR", type: "Corporate Division", email: "delhi@infinityincevents.com" },
+    { city: "Goa", type: "Destination Logistics", email: "goa@infinityincevents.com" }
+  ];
+
+  return (
+    <section className="py-24 2xl:py-32 px-6 md:px-12 2xl:px-24 bg-[#0a0a0a] border-b border-white/5">
+      <div ref={ref} className={`max-w-[2160px] mx-auto transition-all duration-1000 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
+        <div className="text-center mb-20">
+          <p className="font-sans text-[9px] 2xl:text-[11px] tracking-[0.4em] uppercase text-white/40 mb-6">Global Portfolio</p>
+          <h2 className="text-3xl md:text-5xl 2xl:text-6xl font-wide font-extralight uppercase tracking-[0.05em] text-white leading-[1.1]">
+            Our Top <span className="text-transparent custom-stroke-text font-normal">Events.</span>
+          </h2>
+        </div>
+        <GlobalMap />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 2xl:gap-12">
+          {nodes.map((node, i) => (
+            <div key={i} className="p-10 border border-white/10 rounded-2xl hover:border-white/30 transition-colors duration-500 interactive group bg-[#050505]">
+              <h3 className="text-2xl 2xl:text-3xl font-wide font-extralight uppercase tracking-[0.1em] text-white mb-2">{node.city}</h3>
+              <p className="font-sans text-[9px] 2xl:text-[10px] tracking-[0.3em] uppercase text-white/40 mb-8">{node.type}</p>
+              <p className="font-sans text-[10px] 2xl:text-xs tracking-[0.1em] text-white/70 group-hover:text-white transition-colors">{node.email}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const Vision = () => {
+  const [ref, isVisible] = useScrollReveal();
+  return (
+    <section className="py-40 md:py-56 2xl:py-72 bg-[#050505] px-6 border-y border-white/5 relative overflow-hidden">
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[50vw] h-[50vw] bg-white/[0.02] rounded-full blur-[100px] pointer-events-none"></div>
+      <div ref={ref} className={`max-w-4xl 2xl:max-w-6xl mx-auto text-center transition-all duration-1000 ease-out relative z-10 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
+        <p className="font-sans text-[9px] 2xl:text-[11px] tracking-[0.4em] uppercase text-white/40 mb-12">The Philosophy</p>
+        <h2 className="text-3xl md:text-5xl lg:text-6xl 2xl:text-7xl font-wide font-extralight uppercase tracking-[0.08em] leading-[1.3] text-white/80">
+          "There is nothing like a dream to create the future. We dreamt of art. We dreamt of entertainment. We dreamt <span className="text-white font-normal italic">Infinity</span>."
+        </h2>
+      </div>
+    </section>
+  );
+};
+
+const Metrics = () => {
+  const [ref, isVisible] = useScrollReveal();
+  const stats = [
+    { num: "24+", label: "Years of Excellence" },
+    { num: "5", label: "Global Nodes" },
+    { num: "2K+", label: "Events Orchestrated" },
+    { num: "100%", label: "Bespoke Delivery" }
+  ];
+
+  return (
+    <section className="bg-[#050505] border-y border-white/5 px-6 md:px-12 2xl:px-24 py-32 2xl:py-48">
+      <div ref={ref} className={`max-w-[2160px] mx-auto transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-white/10 border border-white/10 rounded-2xl overflow-hidden">
+          {stats.map((stat, i) => (
+            <div key={i} className="bg-[#0a0a0a] py-16 px-8 flex flex-col items-center justify-center text-center group interactive hover:bg-[#0d0d0d] transition-colors duration-500">
+              <span className="text-4xl md:text-6xl 2xl:text-7xl font-wide font-extralight text-white mb-4 tracking-[0.05em] group-hover:scale-110 transition-transform duration-700">{stat.num}</span>
+              <span className="font-sans text-[9px] 2xl:text-[10px] tracking-[0.3em] uppercase text-white/50">{stat.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+/* ==========================================================================
+   ABOUT PAGE SPECIFIC 
+   ========================================================================== */
+
+const OurGenesis = () => {
+  const [ref, isVisible] = useScrollReveal();
+  return (
+    <section className="py-32 2xl:py-48 bg-[#0a0a0a] px-6 md:px-12 2xl:px-24 border-b border-white/5">
+      <div ref={ref} className={`max-w-[2160px] mx-auto transition-all duration-1000 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 lg:gap-24">
+          <div className="lg:col-span-5">
+            <p className="font-sans text-[9px] 2xl:text-[11px] tracking-[0.4em] uppercase text-white/40 mb-8 border-b border-white/10 pb-3 inline-block">The Genesis</p>
+            <h2 className="text-7xl md:text-8xl 2xl:text-[10rem] font-wide font-extralight text-white leading-none">
+              20<span className="text-transparent custom-stroke-text">00.</span>
+            </h2>
+          </div>
+          <div className="lg:col-span-7 flex flex-col justify-end space-y-8 text-sm md:text-base 2xl:text-lg font-sans font-light text-white/60 leading-relaxed max-w-3xl">
+            <p>
+              Infinity Inc. was born from a singular obsession: to transcend the mundane. What began in Pune as an intimate endeavor to redefine corporate gatherings for blue-chip IT giants quickly evolved into a nationwide movement.
+            </p>
+            <p>
+              We stripped away the excess, focusing relentlessly on spatial architecture, sensory engagement, and invisible logistics. Two decades later, that same obsession drives every blueprint we draw and every atmosphere we curate.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const CoreEthos = () => {
+  const [ref, isVisible] = useScrollReveal();
+  const pillars = [
+    { title: "Absolute Discretion", desc: "For our ultra-high-net-worth and elite corporate clientele, privacy is paramount. We operate under strict NDAs, ensuring your event remains entirely yours." },
+    { title: "Microscopic Precision", desc: "Scale means nothing without detail. From the acoustic resonance of a stadium to the thread count of bespoke linens, we engineer perfection." },
+    { title: "Infinite Scale", desc: "Whether orchestrating a highly sensitive boardroom retreat for 50 or a global tech summit for 50,000, our logistical framework scales flawlessly." }
+  ];
+
+  return (
+    <section className="py-32 2xl:py-48 bg-[#050505] px-6 md:px-12 2xl:px-24">
+      <div ref={ref} className={`max-w-[2160px] mx-auto transition-all duration-1000 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
+        <p className="font-sans text-[9px] 2xl:text-[11px] tracking-[0.4em] uppercase text-white/40 mb-16 md:mb-24 text-center">The Framework</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-white/10 border-y border-white/10">
+          {pillars.map((pillar, i) => (
+            <div key={i} className="py-16 md:py-20 md:px-12 2xl:px-16 flex flex-col group interactive cursor-none">
+               <h3 className="text-2xl 2xl:text-3xl font-wide font-extralight uppercase tracking-[0.1em] text-white mb-6 group-hover:pl-4 transition-all duration-500">{pillar.title}</h3>
+               <p className="font-sans text-xs 2xl:text-sm tracking-[0.15em] uppercase text-white/40 leading-relaxed group-hover:text-white/70 transition-colors duration-500">{pillar.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const TheStudio = () => {
+  const [ref, isVisible] = useScrollReveal();
+  return (
+    <section className="relative h-[70vh] 2xl:h-[80vh] w-full bg-[#0a0a0a] overflow-hidden flex items-center justify-center px-6 border-b border-white/5">
+      <div className="absolute inset-0 z-0">
+        <img src="https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=2160" className="w-full h-full object-cover grayscale opacity-30 animate-subtle-zoom" alt="The Studio" />
+        <div className="absolute inset-0 bg-[#050505]/60"></div>
+      </div>
+      <div ref={ref} className={`relative z-10 text-center transition-all duration-1000 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
+         <p className="font-sans text-[9px] 2xl:text-[11px] tracking-[0.4em] uppercase text-white/40 mb-8">Headquarters</p>
+         <h2 className="text-5xl md:text-7xl 2xl:text-8xl font-wide font-extralight uppercase tracking-[0.05em] text-white leading-none mb-6">
+            The Creative <span className="text-transparent custom-stroke-text font-normal">Lab.</span>
+         </h2>
+         <p className="font-sans text-xs 2xl:text-sm tracking-[0.2em] uppercase text-white/60 max-w-xl mx-auto leading-relaxed">
+           Every grand architectural feat begins on a sketchpad in our Pune Headquarters. Where imagination meets meticulous engineering.
+         </p>
+      </div>
+    </section>
+  );
+};
+
+const DirectorProfileRedesigned = () => {
+  const [ref, isVisible] = useScrollReveal();
+  return (
+    <section className="py-32 2xl:py-48 bg-[#0a0a0a] px-6 md:px-12 2xl:px-24 border-b border-white/5 overflow-hidden">
+      <div ref={ref} className={`max-w-[2160px] mx-auto transition-all duration-1000 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 lg:gap-24 items-end">
+          
+          <div className="lg:col-span-6 flex flex-col">
+            <h3 className="text-5xl md:text-7xl 2xl:text-8xl font-wide font-extralight uppercase tracking-[0.05em] text-white mb-16 leading-[1.1] z-10 relative">
+              "It's always <br/> <span className="font-medium text-transparent custom-stroke-text italic">showtime.</span>"
+            </h3>
+            <div className="w-full aspect-[3/4] overflow-hidden rounded-2xl relative shadow-2xl interactive cursor-none group border border-white/5">
+              <img 
+                src="https://infinityincevents.com/wp-content/uploads/Frank-DSouza.jpg" 
+                alt="Frank D'Souza"
+                className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all duration-1000 animate-subtle-zoom"
+              />
+              <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors duration-700 pointer-events-none"></div>
+            </div>
+          </div>
+
+          <div className="lg:col-span-5 lg:col-start-8 pb-12 lg:pb-24">
+            <p className="font-sans text-[9px] 2xl:text-[11px] tracking-[0.4em] uppercase text-white/40 mb-10 border-b border-white/10 pb-3 inline-block">The Architect</p>
+            <div className="space-y-8 text-sm md:text-base 2xl:text-lg font-sans font-light text-white/60 leading-relaxed max-w-xl">
+              <p>A visionary in the realm of high-stakes event architecture, Frank D'Souza merges an innate passion for performing arts with meticulous logistical precision.</p>
+              <p>Under his direction, Infinity Inc. has grown from a regional boutique agency into a national powerhouse, engineering environments that challenge the boundaries of reality and luxury.</p>
+              <p>He believes that the finest events are not merely attended—they are profoundly felt. The true signature of his work lies in the invisible orchestration of perfection.</p>
+            </div>
+            <div className="mt-16 pt-8 border-t border-white/10 inline-block w-fit">
+              <p className="text-white font-sans tracking-[0.3em] uppercase text-xs 2xl:text-sm font-semibold">Frank D'Souza</p>
+              <p className="text-white/40 font-sans text-[9px] 2xl:text-[10px] tracking-[0.4em] uppercase mt-2">Director, Infinity Inc.</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const AboutPage = () => {
+  return (
+    <div className="animate-fade-in pt-32 lg:pt-48 bg-[#050505]">
+      <section className="px-6 md:px-12 2xl:px-24 max-w-[2160px] mx-auto pb-32">
+        <p className="font-sans text-[9px] 2xl:text-[11px] tracking-[0.4em] uppercase text-white/40 mb-8">Our Story</p>
+        <h1 className="text-5xl md:text-7xl lg:text-8xl 2xl:text-9xl font-wide font-extralight uppercase tracking-[0.05em] text-white leading-[1.1]">
+          Designing <br/> <span className="text-transparent custom-stroke-text font-normal">Legacy.</span>
+        </h1>
+      </section>
+      <Vision />
+      <OurGenesis />
+      <CoreEthos />
+      <DirectorProfileRedesigned />
+      <TheStudio />
+      <Metrics />
+      <GlobalNodes />
+    </div>
+  );
+};
+
+/* ==========================================================================
+   HOME PAGE COMPONENTS
+   ========================================================================== */
+
+const ExpertiseSection = () => {
+  const [ref, isVisible] = useScrollReveal();
+  const services = [
+    { num: "01", title: "Corporate Summits", desc: "Orchestrating high-stakes environments for IT, Banking & FMCG giants. Precision, protocol, and perfection.", img: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&q=80&w=1600" },
+    { num: "02", title: "Bespoke Weddings", desc: "Curating ultra-luxury, personalized celebrations that transcend the ordinary. Every detail, flawlessly executed.", img: "https://images.unsplash.com/photo-1511556532299-8f662fc26c06?auto=format&fit=crop&q=80&w=1600" },
+    { num: "03", title: "Global Concerts", desc: "Engineering massive audiovisual landscapes for live entertainment and showbiz. Immersive and unforgettable.", img: "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&q=80&w=1600" }
+  ];
+
+  return (
+    <section className="bg-[#0a0a0a] relative py-24 lg:py-0 border-y border-white/5">
+      <div className="max-w-[2160px] mx-auto px-6 md:px-12 2xl:px-24">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 xl:gap-24 relative">
+          <div className="lg:col-span-5 lg:h-screen lg:sticky top-0 py-12 lg:py-0 flex flex-col justify-center z-10">
+            <div ref={ref} className={`transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
+              <p className="font-sans text-[9px] 2xl:text-[11px] tracking-[0.4em] uppercase text-white/40 mb-8">Capabilities</p>
+              <h2 className="text-5xl md:text-7xl lg:text-6xl xl:text-7xl 2xl:text-8xl font-wide font-extralight uppercase tracking-[0.08em] text-white leading-[1.1] break-words">
+                Our <br/> Domains.
+              </h2>
+              <p className="mt-8 font-sans text-[10px] 2xl:text-xs tracking-[0.2em] uppercase text-white/50 max-w-xs leading-relaxed">
+                Two decades of groundbreaking event architecture.
+              </p>
+            </div>
+          </div>
+          <div className="lg:col-span-7 flex flex-col pb-32 lg:pb-48 pt-0 lg:pt-48 gap-32 2xl:gap-48">
+            {services.map((srv, idx) => (
+              <div key={idx} className="flex flex-col relative group interactive">
+                <div className="w-full aspect-[4/3] md:aspect-[16/10] overflow-hidden rounded-3xl border border-white/5 bg-[#050505] relative">
+                  <img src={srv.img} alt={srv.title} className="w-full h-full object-cover grayscale-[40%] animate-subtle-zoom transition-transform duration-[3000ms] group-hover:scale-105" />
+                  <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors duration-700"></div>
+                </div>
+                <div className="mt-8 flex flex-col xl:flex-row xl:items-start justify-between gap-6 xl:gap-12">
+                  <div className="xl:w-1/2">
+                    <span className="font-sans text-[9px] 2xl:text-[11px] tracking-[0.3em] uppercase text-white/40 block mb-3">Domain // {srv.num}</span>
+                    <h3 className="text-3xl md:text-4xl lg:text-3xl xl:text-4xl 2xl:text-5xl font-wide font-extralight uppercase tracking-[0.1em] text-white leading-tight">
+                      {srv.title}
+                    </h3>
+                  </div>
+                  <p className="font-sans text-[10px] 2xl:text-xs tracking-[0.15em] uppercase text-white/60 max-w-sm xl:w-1/2 pt-2 leading-relaxed">
+                    {srv.desc}
+                  </p>
+                </div>
               </div>
             ))}
           </div>
+        </div>
+      </div>
+    </section>
+  );
+};
 
-          <div className="flex flex-col items-start gap-4 mt-auto pt-12 border-t border-zinc-800 text-left w-full">
-             <span className="text-[10px] tracking-[0.3em] uppercase text-zinc-500 font-semibold mb-2">Get in touch</span>
-             <a href="mailto:info@pillarproperties.co.nz" className="text-white hover:text-zinc-400 transition-colors font-light text-lg">info@pillarproperties.co.nz</a>
-             <a href="tel:+6491234567" className="text-white hover:text-zinc-400 transition-colors font-light text-lg">+64 9 123 4567</a>
+const TheProcess = () => {
+  const [ref, isVisible] = useScrollReveal();
+  const steps = [
+    { num: "01", title: "Conceptualization", desc: "Every iconic moment begins with a blank canvas. We dive deep into the core ethos to extract a compelling visual narrative." },
+    { num: "02", title: "Spatial Architecture", desc: "Transforming empty voids into immersive environments using cutting-edge light, acoustics, and structural design." },
+    { num: "03", title: "Flawless Execution", desc: "Our logistics operate invisibly. Microscopic attention to detail ensures the entire experience flows seamlessly." }
+  ];
+
+  return (
+    <section className="py-32 2xl:py-48 bg-[#050505] px-6 md:px-12 2xl:px-24">
+      <div ref={ref} className={`max-w-[2160px] mx-auto transition-all duration-1000 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end mb-24 2xl:mb-32 gap-10">
+          <div>
+            <p className="font-sans text-[9px] 2xl:text-[11px] tracking-[0.4em] uppercase text-white/40 mb-6">Methodology</p>
+            <h2 className="text-4xl md:text-6xl 2xl:text-7xl font-wide font-extralight uppercase tracking-[0.05em] text-white leading-[1.1]">
+              The Architecture <br/> of an <span className="text-transparent custom-stroke-text font-normal">Event.</span>
+            </h2>
+          </div>
+          <p className="font-sans text-[10px] 2xl:text-xs tracking-[0.2em] uppercase text-white/50 max-w-sm leading-relaxed">
+            A meticulous, three-phased approach to engineering the impossible.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-12 lg:gap-20 border-t border-white/10 pt-16">
+          {steps.map((step, idx) => (
+            <div key={idx} className="flex flex-col group interactive">
+              <span className="text-6xl md:text-7xl 2xl:text-8xl font-wide font-thin text-transparent custom-stroke-text mb-8 transition-colors duration-700 group-hover:text-white/20">{step.num}</span>
+              <h3 className="text-2xl 2xl:text-3xl font-wide font-extralight uppercase tracking-[0.1em] text-white mb-6">{step.title}</h3>
+              <p className="font-sans text-[10px] 2xl:text-xs tracking-[0.15em] uppercase text-white/50 leading-relaxed">{step.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const Clientele = () => {
+  const [ref, isVisible] = useScrollReveal();
+  const brands = ["Microsoft", "Mercedes-Benz", "Vogue", "Porsche", "Samsung", "Louis Vuitton", "Chanel", "Rolex"];
+  const [activeTestimonial, setActiveTestimonial] = useState(null);
+
+  const testimonials = [
+    { main: "Infinity Inc. didn't just host our global summit; they completely redefined our brand's physical presence.", highlight: "Absolute perfection.", author: "Global Tech CEO" },
+    { main: "A masterclass in spatial architecture and experience design. They brought our wildest visions to life with", highlight: "flawless precision.", author: "Creative Director, Luxury Fashion House" },
+    { main: "The level of detail and invisible logistics provided by Infinity made our bespoke celebration", highlight: "truly unforgettable.", author: "Private Client" },
+    { main: "From conceptualization to execution, their team operates on a different frequency. The", highlight: "absolute gold standard.", author: "VP of Marketing, Global Auto Brand" },
+    { main: "They don't just plan events; they engineer memories. An absolute powerhouse in the world of", highlight: "luxury experiences.", author: "Head of Operations, Investment Bank" }
+  ];
+
+  useEffect(() => {
+    const randomIdx = Math.floor(Math.random() * testimonials.length);
+    setActiveTestimonial(testimonials[randomIdx]);
+  }, []);
+
+  const BrandList = () => (
+    <div className="flex items-center">
+      {brands.map((brand, i) => (
+        <React.Fragment key={i}>
+          <span className="whitespace-nowrap">{brand}</span>
+          <span className="mx-8 md:mx-16 text-white/30">•</span>
+        </React.Fragment>
+      ))}
+    </div>
+  );
+
+  return (
+    <section className="py-32 2xl:py-48 bg-[#0a0a0a] border-t border-white/5 overflow-hidden flex flex-col items-center">
+      <div className="w-full overflow-hidden flex z-0 opacity-40 pointer-events-none select-none mb-32 2xl:mb-48">
+        <div className="flex animate-marquee w-max items-center text-3xl md:text-5xl 2xl:text-6xl font-wide font-extralight tracking-[0.2em] uppercase text-white leading-none" style={{ animationDuration: '120s' }}>
+          <BrandList /><BrandList />
+        </div>
+      </div>
+      <div ref={ref} className={`max-w-4xl 2xl:max-w-6xl mx-auto px-6 text-center transition-all duration-1000 ease-out ${isVisible && activeTestimonial ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
+        <div className="flex justify-center mb-10">
+          <svg className="w-8 h-8 text-white/20" fill="currentColor" viewBox="0 0 24 24"><path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z" /></svg>
+        </div>
+        {activeTestimonial && (
+          <>
+            <h3 className="text-2xl md:text-4xl 2xl:text-5xl font-wide font-extralight leading-[1.5] text-white/90 tracking-wide uppercase">
+              "{activeTestimonial.main} <span className="italic font-normal">{activeTestimonial.highlight}</span>"
+            </h3>
+            <p className="mt-12 text-[9px] 2xl:text-[11px] font-sans tracking-[0.4em] uppercase text-white/40">— {activeTestimonial.author}</p>
+          </>
+        )}
+      </div>
+    </section>
+  );
+};
+
+const Showreel = () => {
+  const [ref, isVisible] = useScrollReveal(0.2);
+  return (
+    <section className="bg-[#050505] pt-32 2xl:pt-48 pb-32 2xl:pb-48 flex flex-col items-center w-full relative z-20 overflow-hidden">
+      <div className="absolute top-1/2 left-0 -translate-y-1/2 w-full overflow-hidden flex z-0 opacity-20 pointer-events-none select-none">
+        <div className="flex animate-marquee w-max text-[20vw] 2xl:text-[15vw] font-wide font-extralight tracking-[0.05em] uppercase text-transparent custom-stroke-text leading-none" style={{ animationDuration: '150s' }}>
+          <div className="flex whitespace-nowrap"><span className="pr-12">SHOWREEL • SHOWREEL • SHOWREEL • </span></div>
+          <div className="flex whitespace-nowrap"><span className="pr-12">SHOWREEL • SHOWREEL • SHOWREEL • </span></div>
+        </div>
+      </div>
+      <div ref={ref} className={`w-full max-w-5xl 2xl:max-w-7xl aspect-[16/9] px-6 md:px-0 mx-auto transition-all duration-1000 delay-300 relative z-10 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-16'}`}>
+        <div className="w-full h-full rounded-[2rem] overflow-hidden relative group interactive cursor-none border border-white/10 animate-float shadow-[0_30px_60px_rgba(0,0,0,0.8)]">
+          <img src="https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&q=80&w=2160" alt="Showreel" className="w-full h-full object-cover grayscale-[40%] transition-transform duration-[2000ms] ease-out animate-subtle-zoom" />
+          <div className="absolute inset-0 bg-black/30 group-hover:bg-black/10 transition-colors duration-700"></div>
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-20 h-20 2xl:w-28 2xl:h-28 rounded-full bg-white/5 backdrop-blur-xl flex items-center justify-center border border-white/20 group-hover:bg-white/20 group-hover:scale-110 transition-all duration-500">
+            <Play className="text-white w-6 h-6 2xl:w-8 2xl:h-8 ml-1 opacity-90" fill="currentColor" />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const InfiniteRunway = ({ setCurrentPage }) => {
+  const row1Data = [
+    { img: "https://images.unsplash.com/photo-1511556532299-8f662fc26c06?auto=format&fit=crop&q=80&w=800", category: "Bespoke Weddings", title: "Royal Palace Union", desc: "An intimate yet grand celebration tailored for royalty." },
+    { img: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&q=80&w=800", category: "Corporate Events", title: "Global Tech Summit", desc: "A futuristic stage setup for over 5,000 attendees." },
+    { img: "https://images.unsplash.com/photo-1469334031218-e382a71b716b?auto=format&fit=crop&q=80&w=800", category: "Corporate Events", title: "Product Launch '25", desc: "Immersive projection mapping for a global auto brand." },
+    { img: "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?auto=format&fit=crop&q=80&w=800", category: "Bespoke Weddings", title: "Coastal Serenity", desc: "Minimalist, breathtaking beachside altar." },
+    { img: "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&q=80&w=800", category: "Concerts & Arts", title: "Neon Dreams Fest", desc: "A high-energy visual spectacle for a music festival." }
+  ];
+  
+  const row2Data = [
+    { img: "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&q=80&w=800", category: "Concerts & Arts", title: "Echoes of the Valley", desc: "An outdoor amphitheater experience like no other." },
+    { img: "https://images.unsplash.com/photo-1556761175-5973dc0f32b7?auto=format&fit=crop&q=80&w=800", category: "Bespoke Weddings", title: "The Glasshouse Vows", desc: "A transparent pavilion under a canopy of stars." },
+    { img: "https://images.unsplash.com/photo-1505373877841-8d25f7d46678?auto=format&fit=crop&q=80&w=800", category: "Corporate Events", title: "Executive Retreat", desc: "An exclusive, high-security gathering in the Alps." },
+    { img: "https://images.unsplash.com/photo-1470229722913-7c090be5c560?auto=format&fit=crop&q=80&w=800", category: "Concerts & Arts", title: "Symphony in Lights", desc: "Orchestral performance augmented by laser arrays." },
+    { img: "https://images.unsplash.com/photo-1520854221256-17451cc331bf?auto=format&fit=crop&q=80&w=800", category: "Corporate Events", title: "Fintech Symposium", desc: "Sleek, ultra-modern staging for banking leaders." }
+  ];
+
+  const row3Data = [
+    { img: "https://images.unsplash.com/photo-1519225421980-715cb0215aed?auto=format&fit=crop&q=80&w=800", category: "Bespoke Weddings", title: "Vintage Estate", desc: "Classic elegance with modern, subtle lighting." },
+    { img: "https://images.unsplash.com/photo-1540039155733-d7696c45133a?auto=format&fit=crop&q=80&w=800", category: "Corporate Events", title: "Innovators Gala", desc: "An awards night celebrating technological breakthroughs." },
+    { img: "https://images.unsplash.com/photo-1587825140708-dfaf72ae4b04?auto=format&fit=crop&q=80&w=800", category: "Concerts & Arts", title: "Midnight Rhythms", desc: "Deep bass and dynamic stage lighting." },
+    { img: "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&q=80&w=800", category: "Bespoke Weddings", title: "Urban Chic Affair", desc: "A rooftop celebration overlooking the city skyline." },
+    { img: "https://images.unsplash.com/photo-1515169067868-5387ec356754?auto=format&fit=crop&q=80&w=800", category: "Corporate Events", title: "Future of Mobility", desc: "A breathtaking reveal sequence for an EV launch." }
+  ];
+
+  const RunwayCard = ({ item, sizingClass }) => (
+    <div className={`relative group interactive shrink-0 overflow-hidden rounded-2xl border border-white/5 cursor-none ${sizingClass}`}>
+      <img src={item.img} className="w-full h-full object-cover grayscale-[40%] group-hover:grayscale-0 transition-all duration-700 group-hover:scale-105" alt={item.title} />
+      <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col justify-end p-6 md:p-8 2xl:p-10 pointer-events-none">
+        <div className="transform translate-y-6 group-hover:translate-y-0 transition-transform duration-500 ease-out">
+          <span className="font-sans text-[8px] 2xl:text-[10px] tracking-[0.3em] uppercase text-white/60 block mb-3">{item.category}</span>
+          <h4 className="font-wide text-lg md:text-xl 2xl:text-2xl font-extralight uppercase tracking-[0.05em] text-white mb-3">{item.title}</h4>
+          <p className="font-sans text-[9px] 2xl:text-[11px] tracking-[0.15em] uppercase text-white/50 line-clamp-2 leading-relaxed">{item.desc}</p>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <section className="py-24 2xl:py-32 bg-[#050505] overflow-hidden border-y border-white/5">
+      <div className="flex flex-col gap-6 2xl:gap-8">
+        <div className="flex w-full overflow-hidden select-none hover-pause">
+          <div className="flex animate-marquee w-max" style={{ animationDuration: '90s' }}>
+            <div className="flex gap-6 2xl:gap-8 pr-6 2xl:pr-8">
+              {row1Data.map((item, i) => <RunwayCard key={`r1a-${i}`} item={item} sizingClass="w-[70vw] md:w-[40vw] xl:w-[30vw] 2xl:w-[25vw] aspect-[16/9]" />)}
+            </div>
+            <div className="flex gap-6 2xl:gap-8 pr-6 2xl:pr-8">
+              {row1Data.map((item, i) => <RunwayCard key={`r1b-${i}`} item={item} sizingClass="w-[70vw] md:w-[40vw] xl:w-[30vw] 2xl:w-[25vw] aspect-[16/9]" />)}
+            </div>
+          </div>
+        </div>
+        <div className="flex w-full overflow-hidden select-none hover-pause">
+          <div className="flex animate-marquee-reverse w-max" style={{ animationDuration: '110s' }}>
+            <div className="flex gap-6 2xl:gap-8 pr-6 2xl:pr-8">
+              {row2Data.map((item, i) => <RunwayCard key={`r2a-${i}`} item={item} sizingClass="w-[60vw] md:w-[35vw] xl:w-[25vw] 2xl:w-[20vw] aspect-[4/3]" />)}
+            </div>
+            <div className="flex gap-6 2xl:gap-8 pr-6 2xl:pr-8">
+              {row2Data.map((item, i) => <RunwayCard key={`r2b-${i}`} item={item} sizingClass="w-[60vw] md:w-[35vw] xl:w-[25vw] 2xl:w-[20vw] aspect-[4/3]" />)}
+            </div>
+          </div>
+        </div>
+        <div className="flex w-full overflow-hidden select-none hover-pause">
+          <div className="flex animate-marquee w-max" style={{ animationDuration: '100s' }}>
+            <div className="flex gap-6 2xl:gap-8 pr-6 2xl:pr-8">
+              {row3Data.map((item, i) => <RunwayCard key={`r3a-${i}`} item={item} sizingClass="w-[65vw] md:w-[38vw] xl:w-[28vw] 2xl:w-[22vw] aspect-[16/10]" />)}
+            </div>
+            <div className="flex gap-6 2xl:gap-8 pr-6 2xl:pr-8">
+              {row3Data.map((item, i) => <RunwayCard key={`r3b-${i}`} item={item} sizingClass="w-[65vw] md:w-[38vw] xl:w-[28vw] 2xl:w-[22vw] aspect-[16/10]" />)}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="text-center mt-20">
+         <button onClick={() => setCurrentPage('gallery')} className="interactive border-b border-white/20 pb-2 text-[10px] font-sans tracking-[0.3em] uppercase text-white/60 hover:text-white transition-colors">
+            Explore The Archive
+         </button>
+      </div>
+    </section>
+  );
+};
+
+const Hero = ({ setCurrentPage }) => {
+  const [idx1, setIdx1] = useState(0);
+  const [idx2, setIdx2] = useState(0);
+  const [idx3, setIdx3] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+
+  const base1 = ["https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&q=80&w=1600", "https://images.unsplash.com/photo-1515169067868-5387ec356754?auto=format&fit=crop&q=80&w=1600", "https://images.unsplash.com/photo-1505373877841-8d25f7d46678?auto=format&fit=crop&q=80&w=1600"];
+  const base2 = ["https://images.unsplash.com/photo-1511556532299-8f662fc26c06?auto=format&fit=crop&q=80&w=1600", "https://images.unsplash.com/photo-1519225421980-715cb0215aed?auto=format&fit=crop&q=80&w=1600", "https://images.unsplash.com/photo-1469334031218-e382a71b716b?auto=format&fit=crop&q=80&w=1600"];
+  const base3 = ["https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&q=80&w=1600", "https://images.unsplash.com/photo-1540039155733-d7696c45133a?auto=format&fit=crop&q=80&w=1600", "https://images.unsplash.com/photo-1470229722913-7c090be5c560?auto=format&fit=crop&q=80&w=1600"];
+
+  const col1Images = [...base1, ...base1, ...base1, ...base1];
+  const col2Images = [...base2, ...base2, ...base2, ...base2];
+  const col3Images = [...base3, ...base3, ...base3, ...base3];
+
+  useEffect(() => {
+    setTimeout(() => setLoaded(true), 100);
+    const i1 = setInterval(() => setIdx1(prev => (prev < col1Images.length - 1 ? prev + 1 : prev)), 5000);
+    const i2 = setInterval(() => setIdx2(prev => (prev < col2Images.length - 1 ? prev + 1 : prev)), 7000);
+    const i3 = setInterval(() => setIdx3(prev => (prev < col3Images.length - 1 ? prev + 1 : prev)), 9000);
+
+    setTimeout(() => setIdx1(1), 1500);
+    setTimeout(() => setIdx2(1), 3500);
+    setTimeout(() => setIdx3(1), 5500);
+
+    return () => { clearInterval(i1); clearInterval(i2); clearInterval(i3); };
+  }, [col1Images.length, col2Images.length, col3Images.length]);
+
+  return (
+    <section className="relative h-screen w-full bg-[#050505] overflow-hidden">
+      <div className={`hidden md:flex absolute inset-0 w-full h-full z-0 transition-opacity duration-1000 ${loaded ? 'opacity-100' : 'opacity-0'}`}>
+        <div className="relative w-1/3 h-full overflow-hidden border-r border-white/5">
+          <div className="absolute top-0 left-0 w-full flex flex-col transition-transform duration-[2500ms] ease-[cubic-bezier(0.65,0,0.35,1)]" style={{ transform: `translateY(-${idx1 * 100}vh)` }}>
+            {col1Images.map((img, i) => (
+              <div key={`c1-${i}`} className="relative w-full h-screen flex-shrink-0 overflow-hidden">
+                <img src={img} className="w-full h-full object-cover grayscale-[30%] animate-subtle-zoom" alt="Corporate" />
+                <div className="absolute inset-0 bg-black/30"></div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="relative w-1/3 h-full overflow-hidden border-r border-white/5">
+          <div className="absolute bottom-0 left-0 w-full flex flex-col-reverse transition-transform duration-[2500ms] ease-[cubic-bezier(0.65,0,0.35,1)]" style={{ transform: `translateY(${idx2 * 100}vh)` }}>
+            {col2Images.map((img, i) => (
+              <div key={`c2-${i}`} className="relative w-full h-screen flex-shrink-0 overflow-hidden">
+                <img src={img} className="w-full h-full object-cover grayscale-[30%] animate-subtle-zoom" style={{ animationDelay: '-3s' }} alt="Wedding" />
+                <div className="absolute inset-0 bg-black/30"></div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="relative w-1/3 h-full overflow-hidden">
+          <div className="absolute top-0 left-0 w-full flex flex-col transition-transform duration-[2500ms] ease-[cubic-bezier(0.65,0,0.35,1)]" style={{ transform: `translateY(-${idx3 * 100}vh)` }}>
+            {col3Images.map((img, i) => (
+              <div key={`c3-${i}`} className="relative w-full h-screen flex-shrink-0 overflow-hidden">
+                <img src={img} className="w-full h-full object-cover grayscale-[30%] animate-subtle-zoom" style={{ animationDelay: '-6s' }} alt="Concert" />
+                <div className="absolute inset-0 bg-black/30"></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className={`flex md:hidden absolute inset-0 w-full h-full flex-col z-0 transition-opacity duration-1000 ${loaded ? 'opacity-100' : 'opacity-0'}`}>
+        <div className="relative w-full h-1/3 overflow-hidden border-b border-white/5">
+          <div className="absolute top-0 left-0 h-full flex transition-transform duration-[2500ms] ease-[cubic-bezier(0.65,0,0.35,1)]" style={{ transform: `translateX(-${idx1 * 100}vw)` }}>
+            {col1Images.map((img, i) => (
+              <div key={`m-c1-${i}`} className="relative w-screen h-full flex-shrink-0 overflow-hidden">
+                <img src={img} className="w-full h-full object-cover grayscale-[30%] animate-subtle-zoom" alt="Corporate" />
+                <div className="absolute inset-0 bg-black/30"></div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="relative w-full h-1/3 overflow-hidden border-b border-white/5">
+          <div className="absolute top-0 right-0 h-full flex flex-row-reverse transition-transform duration-[2500ms] ease-[cubic-bezier(0.65,0,0.35,1)]" style={{ transform: `translateX(${idx2 * 100}vw)` }}>
+            {col2Images.map((img, i) => (
+              <div key={`m-c2-${i}`} className="relative w-screen h-full flex-shrink-0 overflow-hidden">
+                <img src={img} className="w-full h-full object-cover grayscale-[30%] animate-subtle-zoom" style={{ animationDelay: '-3s' }} alt="Wedding" />
+                <div className="absolute inset-0 bg-black/30"></div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="relative w-full h-1/3 overflow-hidden">
+          <div className="absolute top-0 left-0 h-full flex transition-transform duration-[2500ms] ease-[cubic-bezier(0.65,0,0.35,1)]" style={{ transform: `translateX(-${idx3 * 100}vw)` }}>
+            {col3Images.map((img, i) => (
+              <div key={`m-c3-${i}`} className="relative w-screen h-full flex-shrink-0 overflow-hidden">
+                <img src={img} className="w-full h-full object-cover grayscale-[30%] animate-subtle-zoom" style={{ animationDelay: '-6s' }} alt="Concert" />
+                <div className="absolute inset-0 bg-black/30"></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="absolute bottom-0 left-0 w-full h-[35vh] bg-gradient-to-t from-[#050505] via-[#050505]/80 to-transparent pointer-events-none z-10"></div>
+
+      <div className="absolute bottom-0 left-0 w-full z-20 px-6 md:px-12 2xl:px-24 h-auto md:h-[20vh] flex flex-col lg:flex-row lg:items-end justify-between pb-8 md:pb-12 pointer-events-none gap-6 2xl:gap-12 max-w-[2160px] mx-auto">
+        <div className="flex flex-col justify-end lg:w-[70%] shrink-0">
+          <p className={`font-sans text-[8px] md:text-[9px] 2xl:text-[11px] tracking-[0.4em] uppercase text-white/50 mb-3 md:mb-4 transition-all duration-1000 delay-300 ${loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+            Est. 2000 // Pune, India
+          </p>
+          <h1 className={`font-wide text-3xl md:text-5xl lg:text-6xl 2xl:text-7xl font-extralight tracking-[0.08em] text-white uppercase leading-none drop-shadow-2xl transition-all duration-1000 delay-500 whitespace-normal xl:whitespace-nowrap ${loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+            Infinite Experiences
+          </h1>
+        </div>
+
+        <div className={`flex flex-col lg:w-[25%] gap-5 lg:gap-6 transition-all duration-1000 delay-700 ${loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+          <p className="font-sans text-[9px] md:text-[10px] 2xl:text-xs tracking-[0.2em] uppercase text-white/70 leading-relaxed">
+            India's premier event architects. Specializing strictly in <span className="text-white font-medium">Corporate Summits</span> and <span className="text-white font-medium">Bespoke Weddings</span>.
+          </p>
+          <button onClick={() => setCurrentPage('contact')} className="pointer-events-auto interactive px-8 py-3.5 2xl:px-12 2xl:py-4 rounded-full border border-white/30 bg-white/[0.03] backdrop-blur-md font-sans text-[9px] 2xl:text-[11px] tracking-[0.3em] uppercase text-white hover:bg-white hover:text-black transition-all duration-500 shadow-xl w-fit">
+            Initialize
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const HomePage = ({ setCurrentPage }) => {
+  return (
+    <div className="animate-fade-in">
+      <Hero setCurrentPage={setCurrentPage} />
+      <Showreel />
+      <TheProcess />
+      <ExpertiseSection />
+      <InfiniteRunway setCurrentPage={setCurrentPage} />
+      <Clientele />
+    </div>
+  );
+};
+
+/* ==========================================================================
+   EXPERTISE / DOMAINS PAGE
+   ========================================================================== */
+
+const ExpertiseHero = () => {
+  const [ref, isVisible] = useScrollReveal();
+  return (
+    <section className="px-6 md:px-12 2xl:px-24 max-w-[2160px] mx-auto pb-24 md:pb-32 border-b border-white/5">
+      <p className="font-sans text-[9px] 2xl:text-[11px] tracking-[0.4em] uppercase text-white/40 mb-8">Our Domains</p>
+      <h1 className="text-5xl md:text-7xl lg:text-8xl 2xl:text-9xl font-wide font-extralight uppercase tracking-[0.05em] text-white leading-[1.1] mb-16">
+        Architecting <br/> <span className="text-transparent custom-stroke-text font-normal">Realities.</span>
+      </h1>
+      <div 
+        ref={ref}
+        className={`w-full aspect-[16/9] md:aspect-[21/9] overflow-hidden rounded-3xl relative transition-all duration-1000 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}
+      >
+        <img src="https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&q=80&w=2160" className="w-full h-full object-cover grayscale-[30%] animate-subtle-zoom" alt="Domain Hero" />
+        <div className="absolute inset-0 bg-black/20 pointer-events-none"></div>
+      </div>
+    </section>
+  );
+};
+
+const DomainCorporate = () => {
+  const [ref, isVisible] = useScrollReveal();
+  return (
+    <section className="py-24 md:py-40 bg-[#0a0a0a] border-b border-white/5 overflow-hidden">
+      <div className="w-full overflow-hidden flex z-0 opacity-[0.07] pointer-events-none select-none mb-20 hover-pause">
+        <div className="flex animate-marquee w-max items-center text-[12vw] font-wide font-extralight tracking-[0.1em] uppercase text-white leading-none" style={{ animationDuration: '80s' }}>
+          <div className="flex whitespace-nowrap"><span className="pr-12">CORPORATE SUMMITS • TECH LAUNCHES • EXECUTIVE RETREATS • </span></div>
+          <div className="flex whitespace-nowrap"><span className="pr-12">CORPORATE SUMMITS • TECH LAUNCHES • EXECUTIVE RETREATS • </span></div>
+        </div>
+      </div>
+
+      <div ref={ref} className={`px-6 md:px-12 2xl:px-24 max-w-[2160px] mx-auto transition-all duration-1000 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 lg:gap-24 items-start">
+          <div className="lg:col-span-5 flex flex-col">
+            <span className="text-6xl md:text-8xl font-wide font-thin text-transparent custom-stroke-text mb-8">01</span>
+            <h2 className="text-4xl md:text-6xl 2xl:text-7xl font-wide font-extralight uppercase tracking-[0.05em] text-white mb-10 leading-[1.1]">Corporate <br/> Summits.</h2>
+            <p className="font-sans text-xs 2xl:text-sm tracking-[0.15em] uppercase text-white/60 leading-relaxed mb-8">
+              We engineer high-stakes environments for the world's most demanding corporate giants. From hyper-secure fintech symposiums to massive 5,000-attendee tech keynotes.
+            </p>
+            <p className="font-sans text-xs 2xl:text-sm tracking-[0.15em] uppercase text-white/40 leading-relaxed mb-16">
+              Our methodology merges spatial psychology with cutting-edge audiovisual integration to keep audiences deeply engaged and amplify brand narratives.
+            </p>
+            <div className="grid grid-cols-2 gap-8 border-t border-white/10 pt-8">
+              <div>
+                <span className="block text-3xl 2xl:text-4xl font-wide font-extralight text-white mb-3">500+</span>
+                <span className="font-sans text-[9px] 2xl:text-[10px] tracking-[0.3em] uppercase text-white/40">Global Summits</span>
+              </div>
+              <div>
+                <span className="block text-3xl 2xl:text-4xl font-wide font-extralight text-white mb-3">120+</span>
+                <span className="font-sans text-[9px] 2xl:text-[10px] tracking-[0.3em] uppercase text-white/40">Brand Partners</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="lg:col-span-7 grid grid-cols-1 md:grid-cols-2 gap-6 2xl:gap-8">
+            <div className="md:col-span-2 aspect-[16/9] overflow-hidden rounded-3xl group interactive cursor-none border border-white/5">
+              <img src="https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&q=80&w=1600" className="w-full h-full object-cover grayscale-[40%] group-hover:grayscale-0 transition-all duration-1000 group-hover:scale-105" alt="Corporate Main" />
+            </div>
+            <div className="aspect-[4/3] overflow-hidden rounded-3xl group interactive cursor-none border border-white/5">
+              <img src="https://images.unsplash.com/photo-1515169067868-5387ec356754?auto=format&fit=crop&q=80&w=800" className="w-full h-full object-cover grayscale-[40%] group-hover:grayscale-0 transition-all duration-1000 group-hover:scale-105" alt="Corporate Detail 1" />
+            </div>
+            <div className="aspect-[4/3] overflow-hidden rounded-3xl group interactive cursor-none border border-white/5">
+              <img src="https://images.unsplash.com/photo-1505373877841-8d25f7d46678?auto=format&fit=crop&q=80&w=800" className="w-full h-full object-cover grayscale-[40%] group-hover:grayscale-0 transition-all duration-1000 group-hover:scale-105" alt="Corporate Detail 2" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const DomainWeddings = () => {
+  const [ref, isVisible] = useScrollReveal();
+  return (
+    <section className="py-24 md:py-40 bg-[#050505] overflow-hidden border-b border-white/5">
+      <div className="w-full overflow-hidden flex z-0 opacity-[0.07] pointer-events-none select-none mb-20 hover-pause">
+        <div className="flex animate-marquee-reverse w-max items-center text-[12vw] font-wide font-extralight tracking-[0.1em] uppercase text-white leading-none" style={{ animationDuration: '90s' }}>
+          <div className="flex whitespace-nowrap"><span className="pr-12">BESPOKE WEDDINGS • ROYAL UNIONS • DESTINATION CELEBRATIONS • </span></div>
+          <div className="flex whitespace-nowrap"><span className="pr-12">BESPOKE WEDDINGS • ROYAL UNIONS • DESTINATION CELEBRATIONS • </span></div>
+        </div>
+      </div>
+
+      <div ref={ref} className={`px-6 md:px-12 2xl:px-24 max-w-[2160px] mx-auto transition-all duration-1000 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 lg:gap-24 items-center">
+          <div className="lg:col-span-7 order-2 lg:order-1 grid grid-cols-2 gap-6 2xl:gap-8 h-full">
+            <div className="flex flex-col gap-6 2xl:gap-8 pt-12 lg:pt-20">
+               <div className="aspect-[3/4] overflow-hidden rounded-3xl group interactive cursor-none border border-white/5">
+                 <img src="https://images.unsplash.com/photo-1511556532299-8f662fc26c06?auto=format&fit=crop&q=80&w=800" className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all duration-1000 group-hover:scale-105" alt="Wedding 1" />
+               </div>
+               <div className="aspect-square overflow-hidden rounded-3xl group interactive cursor-none border border-white/5">
+                 <img src="https://images.unsplash.com/photo-1519225421980-715cb0215aed?auto=format&fit=crop&q=80&w=800" className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all duration-1000 group-hover:scale-105" alt="Wedding 2" />
+               </div>
+            </div>
+            <div className="flex flex-col gap-6 2xl:gap-8 pb-12 lg:pb-20">
+               <div className="aspect-square overflow-hidden rounded-3xl group interactive cursor-none border border-white/5">
+                 <img src="https://images.unsplash.com/photo-1469334031218-e382a71b716b?auto=format&fit=crop&q=80&w=800" className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all duration-1000 group-hover:scale-105" alt="Wedding 3" />
+               </div>
+               <div className="aspect-[3/4] overflow-hidden rounded-3xl group interactive cursor-none border border-white/5">
+                 <img src="https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?auto=format&fit=crop&q=80&w=800" className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all duration-1000 group-hover:scale-105" alt="Wedding 4" />
+               </div>
+            </div>
+          </div>
+          <div className="lg:col-span-5 flex flex-col order-1 lg:order-2 lg:pl-10">
+            <span className="text-6xl md:text-8xl font-wide font-thin text-transparent custom-stroke-text mb-8">02</span>
+            <h2 className="text-4xl md:text-6xl 2xl:text-7xl font-wide font-extralight uppercase tracking-[0.05em] text-white mb-10 leading-[1.1]">Bespoke <br/> Weddings.</h2>
+            <p className="font-sans text-xs 2xl:text-sm tracking-[0.15em] uppercase text-white/60 leading-relaxed mb-8">
+              Curating ultra-luxury, personalized celebrations that transcend the ordinary. Every floral arrangement, every lighting cue, and every architectural choice is flawlessly executed.
+            </p>
+            <p className="font-sans text-xs 2xl:text-sm tracking-[0.15em] uppercase text-white/40 leading-relaxed mb-16">
+              We don't offer packages. We start with a blank canvas and design a highly emotional, cinematic narrative tailored exclusively for the union of two legacies.
+            </p>
+            <ul className="space-y-6 border-t border-white/10 pt-10">
+              {['Private Island Buyouts', 'Royal Palace Takeovers', 'Custom Spatial Architecture', 'High-End Talent Procurement'].map((item, i) => (
+                <li key={i} className="flex items-center text-[10px] 2xl:text-[11px] font-sans tracking-[0.2em] uppercase text-white/70">
+                  <div className="w-1.5 h-1.5 bg-white/40 rounded-full mr-6"></div>{item}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const DomainConcerts = () => {
+  const [ref, isVisible] = useScrollReveal();
+  return (
+    <section className="py-24 md:py-40 bg-[#0a0a0a] border-b border-white/5 overflow-hidden">
+      <div className="w-full overflow-hidden flex z-0 opacity-[0.07] pointer-events-none select-none mb-20 hover-pause">
+        <div className="flex animate-marquee w-max items-center text-[12vw] font-wide font-extralight tracking-[0.1em] uppercase text-white leading-none" style={{ animationDuration: '70s' }}>
+          <div className="flex whitespace-nowrap"><span className="pr-12">GLOBAL CONCERTS • STADIUM TOURS • LIVE SHOWBIZ • </span></div>
+          <div className="flex whitespace-nowrap"><span className="pr-12">GLOBAL CONCERTS • STADIUM TOURS • LIVE SHOWBIZ • </span></div>
+        </div>
+      </div>
+
+      <div ref={ref} className={`px-6 md:px-12 2xl:px-24 max-w-[2160px] mx-auto transition-all duration-1000 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end mb-16 gap-10">
+          <div className="flex flex-col">
+             <span className="text-6xl md:text-8xl font-wide font-thin text-transparent custom-stroke-text mb-8">03</span>
+             <h2 className="text-4xl md:text-6xl 2xl:text-7xl font-wide font-extralight uppercase tracking-[0.05em] text-white leading-[1.1]">Global <br/> Concerts.</h2>
+          </div>
+          <p className="font-sans text-xs 2xl:text-sm tracking-[0.15em] uppercase text-white/50 leading-relaxed max-w-md lg:text-right">
+            Engineering massive audiovisual landscapes for live entertainment. From 50,000-seat stadium tours to immersive, multi-stage music festivals.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 2xl:gap-8">
+           <div className="lg:col-span-2 aspect-[16/9] lg:aspect-auto overflow-hidden rounded-3xl group interactive cursor-none border border-white/5">
+             <img src="https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&q=80&w=1600" className="w-full h-full object-cover grayscale-[40%] group-hover:grayscale-0 transition-all duration-1000 group-hover:scale-105" alt="Concert Main" />
+           </div>
+           <div className="flex flex-col gap-6 2xl:gap-8">
+             <div className="aspect-[16/9] lg:aspect-auto lg:flex-1 overflow-hidden rounded-3xl group interactive cursor-none border border-white/5">
+               <img src="https://images.unsplash.com/photo-1540039155733-d7696c45133a?auto=format&fit=crop&q=80&w=800" className="w-full h-full object-cover grayscale-[40%] group-hover:grayscale-0 transition-all duration-1000 group-hover:scale-105" alt="Concert Detail 1" />
+             </div>
+             <div className="aspect-[16/9] lg:aspect-auto lg:flex-1 overflow-hidden rounded-3xl group interactive cursor-none border border-white/5">
+               <img src="https://images.unsplash.com/photo-1470229722913-7c090be5c560?auto=format&fit=crop&q=80&w=800" className="w-full h-full object-cover grayscale-[40%] group-hover:grayscale-0 transition-all duration-1000 group-hover:scale-105" alt="Concert Detail 2" />
+             </div>
+           </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const CapabilitiesMatrix = () => {
+  const [ref, isVisible] = useScrollReveal();
+  const capabilities = [
+    { title: "Spatial Architecture", details: "Stage & Set Design, 3D Rendering, Venue Mapping" },
+    { title: "Audiovisual Eng.", details: "Sound Scaping, Projection Mapping, Intelligent Lighting" },
+    { title: "Invisible Logistics", details: "Global Freight, Permit Acquisition, Security Protocols" },
+    { title: "Guest Experience", details: "VIP Concierge, RSVP Management, Bespoke Gifting" },
+    { title: "Talent & Showbiz", details: "Artist Procurement, Choreography, Show Calling" },
+    { title: "Financial Modeling", details: "Budget Architecture, ROI Tracking, Vendor Negotiations" }
+  ];
+
+  return (
+    <section className="py-32 2xl:py-48 bg-[#050505] px-6 md:px-12 2xl:px-24">
+      <div ref={ref} className={`max-w-[2160px] mx-auto transition-all duration-1000 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
+        <p className="font-sans text-[9px] 2xl:text-[11px] tracking-[0.4em] uppercase text-white/40 mb-16 text-center">Service Matrix</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-12 gap-y-16 lg:gap-y-24 border-t border-white/10 pt-16">
+          {capabilities.map((cap, i) => (
+            <div key={i} className="flex flex-col interactive group cursor-none">
+              <div className="w-full h-[1px] bg-white/10 mb-8 group-hover:bg-white/30 transition-colors duration-500 relative overflow-hidden">
+                 <div className="absolute top-0 left-0 w-full h-full bg-white transform -translate-x-full group-hover:translate-x-0 transition-transform duration-[800ms] ease-out"></div>
+              </div>
+              <h4 className="text-xl md:text-2xl 2xl:text-3xl font-wide font-extralight uppercase tracking-[0.1em] text-white mb-4 group-hover:pl-3 transition-all duration-500">{cap.title}</h4>
+              <p className="font-sans text-[10px] 2xl:text-[11px] tracking-[0.15em] uppercase text-white/40 leading-relaxed group-hover:text-white/70 transition-colors duration-500">{cap.details}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const ExpertisePage = () => {
+  return (
+    <div className="animate-fade-in pt-32 lg:pt-48 bg-[#050505]">
+       <ExpertiseHero />
+       <DomainCorporate />
+       <DomainWeddings />
+       <DomainConcerts />
+       <CapabilitiesMatrix />
+    </div>
+  );
+};
+
+/* ==========================================================================
+   GALLERY PAGE
+   ========================================================================== */
+
+const GalleryPage = () => {
+  const [filter, setFilter] = useState('All');
+  const [ref1, isVisible1] = useScrollReveal();
+  const [ref2, isVisible2] = useScrollReveal();
+
+  const filters = ['All', 'Corporate', 'Weddings', 'Concerts'];
+
+  const projects = [
+    { img: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&q=80&w=800", category: "Corporate", title: "Global Tech Summit" },
+    { img: "https://images.unsplash.com/photo-1511556532299-8f662fc26c06?auto=format&fit=crop&q=80&w=800", category: "Weddings", title: "The Royal Union" },
+    { img: "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&q=80&w=800", category: "Concerts", title: "Echoes Festival" },
+    { img: "https://images.unsplash.com/photo-1515169067868-5387ec356754?auto=format&fit=crop&q=80&w=800", category: "Corporate", title: "Auto Reveal '25" },
+    { img: "https://images.unsplash.com/photo-1519225421980-715cb0215aed?auto=format&fit=crop&q=80&w=800", category: "Weddings", title: "Coastal Vows" },
+    { img: "https://images.unsplash.com/photo-1540039155733-d7696c45133a?auto=format&fit=crop&q=80&w=800", category: "Concerts", title: "Midnight Symphony" },
+    { img: "https://images.unsplash.com/photo-1505373877841-8d25f7d46678?auto=format&fit=crop&q=80&w=800", category: "Corporate", title: "Leadership Retreat" },
+    { img: "https://images.unsplash.com/photo-1469334031218-e382a71b716b?auto=format&fit=crop&q=80&w=800", category: "Weddings", title: "Urban Chic Affair" },
+    { img: "https://images.unsplash.com/photo-1470229722913-7c090be5c560?auto=format&fit=crop&q=80&w=800", category: "Concerts", title: "Neon Dreams" }
+  ];
+
+  const filteredProjects = filter === 'All' ? projects : projects.filter(p => p.category === filter);
+
+  return (
+    <div className="animate-fade-in pt-32 lg:pt-48 bg-[#050505] min-h-screen">
+      <section className="px-6 md:px-12 2xl:px-24 max-w-[2160px] mx-auto pb-24 border-b border-white/5">
+        <p className="font-sans text-[9px] 2xl:text-[11px] tracking-[0.4em] uppercase text-white/40 mb-8">The Archive</p>
+        <h1 className="text-5xl md:text-7xl lg:text-8xl 2xl:text-9xl font-wide font-extralight uppercase tracking-[0.05em] text-white leading-[1.1]">
+          Visual <br/> <span className="text-transparent custom-stroke-text font-normal">Symphony.</span>
+        </h1>
+      </section>
+
+      <section className="py-24 2xl:py-32 px-6 md:px-12 2xl:px-24 max-w-[2160px] mx-auto border-b border-white/5">
+        <div ref={ref1} className={`transition-all duration-1000 ease-out ${isVisible1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end mb-12 gap-6">
+            <div>
+              <p className="font-sans text-[9px] 2xl:text-[11px] tracking-[0.4em] uppercase text-white/40 mb-4">Featured Selection</p>
+              <h2 className="text-3xl md:text-5xl 2xl:text-6xl font-wide font-extralight uppercase tracking-[0.05em] text-white">The Monaco Estate</h2>
+            </div>
+            <button className="interactive border-b border-white/20 pb-2 text-[10px] font-sans tracking-[0.3em] uppercase text-white hover:text-white/50 transition-colors">
+              View Case Study
+            </button>
+          </div>
+          <div className="w-full aspect-[16/9] md:aspect-[21/9] overflow-hidden rounded-3xl relative group interactive cursor-none border border-white/5">
+            <img src="https://images.unsplash.com/photo-1511556532299-8f662fc26c06?auto=format&fit=crop&q=80&w=2160" className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all duration-[2000ms] group-hover:scale-105 animate-subtle-zoom" alt="Featured Project" />
+            <div className="absolute inset-0 bg-black/20 pointer-events-none transition-colors duration-700 group-hover:bg-transparent"></div>
+          </div>
+        </div>
+      </section>
+
+      <section className="px-6 md:px-12 2xl:px-24 py-24 2xl:py-32 max-w-[2160px] mx-auto">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-16 gap-8">
+          <h3 className="text-2xl md:text-3xl font-wide font-extralight uppercase tracking-[0.1em] text-white">Curated Collection</h3>
+          <div className="flex flex-wrap gap-6 md:gap-10">
+            {filters.map(f => (
+              <button 
+                key={f} 
+                onClick={() => setFilter(f)}
+                className={`interactive font-sans text-[10px] 2xl:text-xs tracking-[0.3em] uppercase transition-all duration-300 pb-2 border-b-2 ${filter === f ? 'text-white border-white' : 'text-white/40 border-transparent hover:text-white/80'}`}
+              >
+                {f}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Persistent Floating CTA */}
-        {scrolled && currentPage !== 'contact' && (
-           <Interactive className="fixed bottom-8 right-6 md:right-12 lg:right-16 z-40 animate-in slide-in-from-bottom-10 fade-in duration-500 hidden md:block">
-              <button 
-                onClick={() => setCurrentPage('contact')} 
-                className="bg-zinc-950 text-white px-8 py-4 text-xs tracking-[0.2em] uppercase font-semibold rounded-full shadow-2xl hover:bg-zinc-800 transition-colors flex items-center gap-2"
-              >
-                Inquire Now <ArrowUpRight className="w-4 h-4" />
-              </button>
-           </Interactive>
-        )}
-
-        {/* Dynamic Page Rendering */}
-        <main className="flex-grow z-10 bg-[#fafafa]">
-          {currentPage === 'home' && <HomePage navigate={setCurrentPage} />}
-          {currentPage === 'about' && <AboutPage />}
-          {currentPage === 'services' && <ServicesPage />}
-          {currentPage === 'projects' && <ProjectsPage />}
-          {currentPage === 'gallery' && <GalleryPage />}
-          {currentPage === 'contact' && <ContactPage />}
-        </main>
-
-        {/* Architectural Footer */}
-        <footer className="bg-zinc-950 text-zinc-400 py-24 px-[3%] relative z-20">
-          <div className="max-w-[1600px] mx-auto w-full">
-            <div className="flex flex-col md:flex-row justify-between items-start border-b border-zinc-800 pb-20">
-              <div className="mb-12 md:mb-0">
-                <Interactive onClick={() => setCurrentPage('home')}>
-                  <img 
-                    src="https://static.wixstatic.com/media/548938_7808033ca9fd4a2c9b9240e3e3f945e2~mv2.png" 
-                    alt="Pillar Properties" 
-                    className="h-12 md:h-16 w-auto mb-6 cursor-pointer object-contain" 
-                  />
-                </Interactive>
-                <div className="flex gap-6 mt-12">
-                  <Interactive><Instagram className="w-5 h-5 text-zinc-500 hover:text-white transition-colors cursor-pointer" /></Interactive>
-                  <Interactive><Linkedin className="w-5 h-5 text-zinc-500 hover:text-white transition-colors cursor-pointer" /></Interactive>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-12 md:gap-32">
-                <div>
-                  <h4 className="text-[10px] md:text-xs tracking-[0.2em] uppercase font-semibold text-zinc-600 mb-8">Navigation</h4>
-                  <ul className="space-y-4 text-sm md:text-base">
-                    {navLinks.map(link => (
-                      <li key={link}>
-                        <Interactive onClick={() => setCurrentPage(link)}>
-                          <span className="hover:text-white transition-colors capitalize cursor-pointer font-light">{link}</span>
-                        </Interactive>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <h4 className="text-[10px] md:text-xs tracking-[0.2em] uppercase font-semibold text-zinc-600 mb-8">Contact</h4>
-                  <ul className="space-y-4 font-light text-sm md:text-base">
-                    <li>Auckland CBD</li>
-                    <li>+64 9 123 4567</li>
-                    <li>info@pillarproperties.co.nz</li>
-                  </ul>
-                </div>
-              </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-10">
+          {filteredProjects.map((proj, i) => (
+            <div key={`${filter}-${i}`} className={`relative overflow-hidden group interactive border border-white/5 rounded-2xl animate-fade-in ${i % 3 === 0 ? 'aspect-[3/4]' : i % 2 === 0 ? 'aspect-square' : 'aspect-[4/3]'}`}>
+               <img src={proj.img} alt={proj.title} className="w-full h-full object-cover grayscale-[40%] transition-transform duration-[2000ms] group-hover:scale-105" />
+               <div className="absolute inset-0 bg-gradient-to-t from-[#050505]/90 via-black/20 to-transparent opacity-60 group-hover:opacity-100 transition-opacity duration-700"></div>
+               <div className="absolute bottom-0 left-0 p-8 transform translate-y-4 group-hover:translate-y-0 transition-transform duration-500">
+                 <span className="font-sans text-[8px] 2xl:text-[10px] tracking-[0.3em] uppercase text-white/50 block mb-2">{proj.category}</span>
+                 <h4 className="font-wide text-xl 2xl:text-2xl font-extralight uppercase tracking-[0.05em] text-white">{proj.title}</h4>
+               </div>
             </div>
-            
-            <div className="pt-8 flex flex-col md:flex-row justify-between items-center text-[10px] md:text-xs tracking-widest uppercase font-semibold text-zinc-600">
-              <p className="mb-4 md:mb-0">&copy; {new Date().getFullYear()} PILLAR PROPERTIES</p>
-              <div className="flex gap-8">
-                <Interactive><span className="hover:text-zinc-400 cursor-pointer transition-colors">Privacy</span></Interactive>
-                <Interactive><span className="hover:text-zinc-400 cursor-pointer transition-colors">Terms</span></Interactive>
+          ))}
+        </div>
+      </section>
+
+      <section className="py-24 2xl:py-32 bg-[#0a0a0a] border-t border-white/5 px-6 md:px-12 2xl:px-24">
+        <div ref={ref2} className={`max-w-[2160px] mx-auto transition-all duration-1000 ease-out ${isVisible2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
+          <div className="text-center mb-20">
+            <p className="font-sans text-[9px] 2xl:text-[11px] tracking-[0.4em] uppercase text-white/40 mb-6">Cinematography</p>
+            <h2 className="text-4xl md:text-6xl 2xl:text-7xl font-wide font-extralight uppercase tracking-[0.05em] text-white leading-[1.1]">
+              The Motion <br/> <span className="text-transparent custom-stroke-text font-normal">Vault.</span>
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 2xl:gap-12">
+            {[
+              { img: "https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&q=80&w=1200", title: "Corporate Showreel '24" },
+              { img: "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&q=80&w=1200", title: "Live Entertainment Edit" }
+            ].map((video, idx) => (
+              <div key={idx} className="w-full aspect-[16/9] rounded-3xl overflow-hidden relative group interactive cursor-none border border-white/5 shadow-2xl">
+                <img src={video.img} className="w-full h-full object-cover grayscale-[50%] group-hover:grayscale-0 transition-all duration-[2000ms] group-hover:scale-105" alt={video.title} />
+                <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors duration-700"></div>
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-16 h-16 2xl:w-24 2xl:h-24 rounded-full bg-white/10 backdrop-blur-xl flex items-center justify-center border border-white/30 group-hover:bg-white/30 group-hover:scale-110 transition-all duration-500">
+                  <Play className="text-white w-6 h-6 2xl:w-8 2xl:h-8 ml-1 opacity-90" fill="currentColor" />
+                </div>
+                <div className="absolute bottom-6 left-8">
+                  <h4 className="font-wide text-lg 2xl:text-xl font-extralight uppercase tracking-[0.05em] text-white">{video.title}</h4>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+};
+
+/* ==========================================================================
+   CONTACT PAGE
+   ========================================================================== */
+
+const ContactPage = () => {
+  const [activeFaq, setActiveFaq] = useState(null);
+  const faqs = [
+    { q: "What is your minimum engagement scope?", a: "We specialize in grand-scale and ultra-luxury events. While we do not have a strict financial minimum, our engagements typically begin with complex spatial or logistical requirements that standard agencies cannot accommodate." },
+    { q: "Do you execute international commissions?", a: "Yes. With a robust network of global logistics partners and our core nodes across major cities, we have seamlessly executed events in the Middle East, Europe, and Southeast Asia." },
+    { q: "What is the typical lead time required?", a: "For large-scale corporate summits or bespoke destination weddings, we recommend a lead time of 6 to 12 months. This allows for uncompromising attention to architectural design and talent procurement." },
+    { q: "Do you operate under strict NDAs?", a: "Absolute discretion is a cornerstone of our philosophy. We routinely operate under strict Non-Disclosure Agreements for our high-profile, celebrity, and corporate elite clientele." }
+  ];
+
+  return (
+    <div className="animate-fade-in pt-32 lg:pt-48 bg-[#050505] min-h-screen flex flex-col">
+      <section className="px-6 md:px-12 2xl:px-24 max-w-[2160px] mx-auto w-full pb-32 border-b border-white/5">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 xl:gap-20">
+          <div className="lg:col-span-6 xl:col-span-5">
+            <p className="font-sans text-[9px] 2xl:text-[11px] tracking-[0.4em] uppercase text-white/40 mb-8">Initialize Sequence</p>
+            <h1 className="text-5xl md:text-7xl lg:text-6xl xl:text-7xl 2xl:text-8xl font-wide font-extralight uppercase tracking-[0.05em] text-white leading-[1.1] mb-12">
+              Connect.<br/><span className="text-transparent custom-stroke-text font-normal whitespace-nowrap">The Vision.</span>
+            </h1>
+            <div className="space-y-12">
+              <div>
+                 <p className="font-sans text-[9px] tracking-[0.3em] uppercase text-white/40 mb-3 border-b border-white/10 inline-block pb-2">Direct Line</p>
+                 <p className="font-sans text-sm md:text-base tracking-[0.1em] text-white font-light hover:text-white/60 transition-colors interactive w-fit cursor-pointer">info@infinityincevents.com</p>
+              </div>
+              <div>
+                 <p className="font-sans text-[9px] tracking-[0.3em] uppercase text-white/40 mb-3 border-b border-white/10 inline-block pb-2">Headquarters</p>
+                 <p className="font-sans text-sm md:text-base tracking-[0.1em] text-white font-light leading-relaxed">Pune, Maharashtra<br/>India</p>
               </div>
             </div>
           </div>
-        </footer>
+          <div className="lg:col-span-6 xl:col-span-7 lg:pl-8 xl:pl-16">
+            <form className="flex flex-col gap-12 mt-8 lg:mt-0" onSubmit={(e) => e.preventDefault()}>
+              <div className="flex flex-col gap-2">
+                <label className="font-sans text-[9px] tracking-[0.3em] uppercase text-white/40 pl-2">Full Name</label>
+                <input type="text" className="interactive bg-transparent border-b border-white/20 focus:border-white outline-none py-4 px-2 text-sm text-white font-sans transition-colors" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="font-sans text-[9px] tracking-[0.3em] uppercase text-white/40 pl-2">Email Address</label>
+                <input type="email" className="interactive bg-transparent border-b border-white/20 focus:border-white outline-none py-4 px-2 text-sm text-white font-sans transition-colors" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="font-sans text-[9px] tracking-[0.3em] uppercase text-white/40 pl-2">Inquiry Type</label>
+                <select className="interactive bg-transparent border-b border-white/20 focus:border-white outline-none py-4 px-2 text-sm text-white/80 font-sans transition-colors appearance-none rounded-none">
+                  <option className="bg-black text-white">Corporate Summit</option>
+                  <option className="bg-black text-white">Bespoke Wedding</option>
+                  <option className="bg-black text-white">General Inquiry</option>
+                </select>
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="font-sans text-[9px] tracking-[0.3em] uppercase text-white/40 pl-2">Message</label>
+                <textarea rows="4" className="interactive bg-transparent border-b border-white/20 focus:border-white outline-none py-4 px-2 text-sm text-white font-sans transition-colors resize-none"></textarea>
+              </div>
+              <button className="interactive w-fit mt-4 px-12 py-4 rounded-full border border-white/30 bg-white/[0.03] backdrop-blur-md font-sans text-[10px] tracking-[0.3em] uppercase text-white hover:bg-white hover:text-black transition-all duration-500">
+                Transmit Message
+              </button>
+            </form>
+          </div>
+        </div>
+      </section>
 
-      </div>
-    </CursorContext.Provider>
+      <section className="py-24 2xl:py-32 px-6 md:px-12 2xl:px-24 bg-[#0a0a0a] border-b border-white/5">
+        <div className="max-w-[2160px] mx-auto">
+          <div className="text-center mb-20">
+            <p className="font-sans text-[9px] 2xl:text-[11px] tracking-[0.4em] uppercase text-white/40 mb-6">Strategic Presence</p>
+            <h2 className="text-3xl md:text-5xl 2xl:text-6xl font-wide font-extralight uppercase tracking-[0.05em] text-white leading-[1.1]">
+              Global <span className="text-transparent custom-stroke-text font-normal">Presence.</span>
+            </h2>
+          </div>
+          <GlobalMap />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 2xl:gap-12">
+            {[
+              { city: "Pune", type: "HQ & Design Lab", email: "pune@infinityincevents.com" },
+              { city: "Mumbai", type: "Showbiz Division", email: "mumbai@infinityincevents.com" },
+              { city: "Delhi-NCR", type: "Corporate Division", email: "delhi@infinityincevents.com" },
+              { city: "Goa", type: "Destination Logistics", email: "goa@infinityincevents.com" }
+            ].map((node, i) => (
+              <div key={i} className="p-10 border border-white/10 rounded-2xl hover:border-white/30 transition-colors duration-500 interactive group bg-[#050505]">
+                <h3 className="text-2xl 2xl:text-3xl font-wide font-extralight uppercase tracking-[0.1em] text-white mb-2">{node.city}</h3>
+                <p className="font-sans text-[9px] 2xl:text-[10px] tracking-[0.3em] uppercase text-white/40 mb-8">{node.type}</p>
+                <p className="font-sans text-[10px] 2xl:text-xs tracking-[0.1em] text-white/70 group-hover:text-white transition-colors">{node.email}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="py-24 2xl:py-32 px-6 md:px-12 2xl:px-24 bg-[#050505]">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-16">
+            <p className="font-sans text-[9px] 2xl:text-[11px] tracking-[0.4em] uppercase text-white/40 mb-4">Operations</p>
+            <h2 className="text-3xl md:text-5xl font-wide font-extralight uppercase tracking-[0.05em] text-white">Engagement Protocols</h2>
+          </div>
+          <div className="flex flex-col border-t border-white/10">
+            {faqs.map((faq, i) => (
+              <div key={i} className="border-b border-white/10 overflow-hidden interactive" onClick={() => setActiveFaq(activeFaq === i ? null : i)}>
+                <div className="py-8 flex justify-between items-center cursor-none">
+                  <h4 className={`text-sm md:text-base 2xl:text-lg font-wide font-extralight uppercase tracking-[0.05em] transition-colors duration-300 pr-8 ${activeFaq === i ? 'text-white' : 'text-white/60'}`}>{faq.q}</h4>
+                  <div className="text-white/40 font-mono text-xl font-light">{activeFaq === i ? '−' : '+'}</div>
+                </div>
+                <div className={`transition-all duration-500 ease-in-out ${activeFaq === i ? 'max-h-64 opacity-100 pb-8' : 'max-h-0 opacity-0'}`}>
+                  <p className="font-sans text-xs 2xl:text-sm tracking-[0.15em] uppercase text-white/40 leading-relaxed max-w-2xl">{faq.a}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="py-20 bg-white/5 border-y border-white/10 px-6 text-center">
+        <h3 className="text-xl md:text-2xl font-wide font-extralight uppercase tracking-[0.1em] text-white mb-4">Join The Architecture</h3>
+        <p className="font-sans text-[10px] 2xl:text-xs tracking-[0.2em] uppercase text-white/50 max-w-xl mx-auto mb-8 leading-relaxed">
+          We are always searching for visionary designers, logistical masterminds, and production specialists.
+        </p>
+        <a href="mailto:careers@infinityincevents.com" className="interactive border-b border-white/20 pb-2 text-[10px] font-sans tracking-[0.3em] uppercase text-white hover:text-white/50 transition-colors">
+          Submit Portfolio
+        </a>
+      </section>
+    </div>
+  );
+};
+
+/* ==========================================================================
+   MAIN APP ROUTER
+   ========================================================================== */
+
+export default function App() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [currentPage, setCurrentPage] = useState('home');
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 50);
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const navigateTo = (page) => {
+    setMobileMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    setCurrentPage(page);
+  };
+
+  const navItems = [
+    { name: 'Home', id: 'home' },
+    { name: 'About', id: 'about' },
+    { name: 'Expertise', id: 'expertise' },
+    { name: 'Gallery', id: 'gallery' },
+    { name: 'Contact', id: 'contact' }
+  ];
+
+  return (
+    <div className="bg-[#050505] min-h-screen font-sans antialiased selection:bg-white/20 selection:text-white scroll-smooth text-white flex flex-col">
+      <style dangerouslySetInnerHTML={{__html: `
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600&family=Montserrat:wght@100;200;300;400;900&display=swap');
+
+        .font-wide { font-family: 'Montserrat', sans-serif; }
+        .font-sans { font-family: 'Inter', sans-serif; }
+
+        body { cursor: none !important; overflow-x: hidden; background-color: #050505; }
+        * { cursor: none !important; }
+
+        /* Restore Native Cursors for Map Interaction */
+        #global-map { cursor: grab !important; }
+        #global-map:active { cursor: grabbing !important; }
+        #global-map * { cursor: inherit !important; }
+        #global-map .leaflet-interactive { cursor: pointer !important; }
+
+        .custom-stroke-text {
+          -webkit-text-stroke: 1px rgba(255, 255, 255, 0.4);
+          color: transparent;
+        }
+
+        @keyframes subtleZoom { 0% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }
+        @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        @keyframes marqueeReverse { 0% { transform: translateX(-50%); } 100% { transform: translateX(0); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .animate-subtle-zoom { animation: subtleZoom 20s ease-in-out infinite alternate; }
+        .animate-float { animation: float 8s ease-in-out infinite; }
+        .animate-marquee { animation: marquee linear infinite; }
+        .animate-marquee-reverse { animation: marqueeReverse linear infinite; }
+        .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
+        .animate-fade-in-up { animation: fadeInUp 1.5s ease-out forwards; }
+        
+        .hover-pause:hover .animate-marquee,
+        .hover-pause:hover .animate-marquee-reverse { animation-play-state: paused !important; }
+
+        .custom-tooltip {
+          background-color: rgba(5, 5, 5, 0.9) !important;
+          border: 1px solid rgba(255,255,255,0.1) !important;
+          color: white !important;
+          font-family: 'Inter', sans-serif !important;
+          font-size: 9px !important;
+          text-transform: uppercase !important;
+          letter-spacing: 0.2em !important;
+          border-radius: 4px !important;
+          box-shadow: 0 10px 30px rgba(0,0,0,0.8) !important;
+          backdrop-filter: blur(10px);
+        }
+        .leaflet-tooltip-top:before { border-top-color: rgba(5, 5, 5, 0.9) !important; }
+        .leaflet-container { background: transparent !important; }
+
+        .cursor-dot { background-color: #ffffff; }
+        .cursor-ring { border-color: rgba(255,255,255,0.4); background-color: rgba(255,255,255,0.1); }
+      `}} />
+
+      {isLoading && <Preloader finishLoading={() => setIsLoading(false)} />}
+
+      <CustomCursor />
+      
+      <nav className={`fixed w-full z-[100] transition-all duration-700 px-6 md:px-12 2xl:px-24 py-6 2xl:py-8 ${scrolled || currentPage !== 'home' ? 'bg-[#050505]/95 backdrop-blur-md border-b border-white/5 py-4 2xl:py-6' : ''}`}>
+        <div className="max-w-[2160px] mx-auto flex justify-between items-center text-white">
+          <div className="interactive z-50 flex items-center cursor-none" onClick={() => navigateTo('home')}>
+            <img 
+              src="https://infinityincevents.com/wp-content/uploads/Logo-Transparent-2048x569.png" 
+              alt="Infinity Inc Logo" 
+              className="h-[25px] md:h-[35px] 2xl:h-[40px] object-contain invert brightness-0 hover:opacity-70 transition-opacity" 
+            />
+          </div>
+          <div className="hidden lg:flex items-center space-x-12 2xl:space-x-16">
+            {navItems.map(item => (
+              <button 
+                key={item.id} 
+                onClick={() => navigateTo(item.id)} 
+                className={`text-[9px] 2xl:text-[11px] font-sans tracking-[0.3em] uppercase transition-colors interactive font-medium ${currentPage === item.id ? 'text-white border-b border-white/30 pb-1' : 'text-white/50 hover:text-white pb-1 border-b border-transparent'}`}
+              >
+                {item.name}
+              </button>
+            ))}
+          </div>
+          <button className="lg:hidden interactive z-50 text-white" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+            {mobileMenuOpen ? <X size={28} strokeWidth={1} /> : <Menu size={28} strokeWidth={1} />}
+          </button>
+        </div>
+
+        <div className={`fixed inset-0 bg-[#050505] z-40 transition-all duration-700 ease-[cubic-bezier(0.19,1,0.22,1)] flex flex-col justify-center items-center lg:hidden ${mobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+           <div className="flex flex-col items-center space-y-10">
+            {navItems.map((item, i) => (
+              <button 
+                key={item.id} 
+                onClick={() => navigateTo(item.id)}
+                className={`text-3xl font-wide font-extralight tracking-[0.1em] uppercase transition-colors interactive ${currentPage === item.id ? 'text-white' : 'text-white/50 hover:text-white'}`}
+                style={{ transitionDelay: `${i * 100}ms`, transform: mobileMenuOpen ? 'translateY(0)' : 'translateY(20px)', opacity: mobileMenuOpen ? 1 : 0 }}
+              >
+                {item.name}
+              </button>
+            ))}
+           </div>
+        </div>
+      </nav>
+
+      <main className="flex-grow flex flex-col">
+        {currentPage === 'home' && <HomePage setCurrentPage={navigateTo} />}
+        {currentPage === 'about' && <AboutPage />}
+        {currentPage === 'expertise' && <ExpertisePage />}
+        {currentPage === 'gallery' && <GalleryPage />}
+        {currentPage === 'contact' && <ContactPage />}
+      </main>
+
+      <Footer setCurrentPage={navigateTo} />
+    </div>
   );
 }
